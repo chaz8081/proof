@@ -4,10 +4,13 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/chaz8081/proof/internal/config"
 	proofgh "github.com/chaz8081/proof/internal/github"
 	"github.com/chaz8081/proof/internal/review"
+	proofstore "github.com/chaz8081/proof/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +22,8 @@ func init() {
 		Short: "Check for PRs needing review and generate AI draft reviews",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 
 			cfg, err := config.Load()
 			if err != nil {
@@ -98,6 +103,16 @@ func init() {
 				if err != nil {
 					cmd.PrintErrf("  Warning: Error creating review: %v\n", err)
 					continue
+				}
+
+				if err := pendingStore.Add(proofstore.PendingRecord{
+					Owner:    pr.Owner,
+					Repo:     pr.Repo,
+					Number:   pr.Number,
+					ReviewID: reviewID,
+					Created:  time.Now(),
+				}); err != nil {
+					cmd.PrintErrf("  Warning: Failed to record pending review locally: %v\n", err)
 				}
 
 				cmd.Printf("  Done — pending review created (ID: %d) — %d comments, verdict: %s\n",
