@@ -4,11 +4,12 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/chaz8081/proof/internal/config"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var configCmd = &cobra.Command{
@@ -31,6 +32,50 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
+func detectGitHubUser() string {
+	cmd := exec.Command("gh", "api", "user", "--jq", ".login")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func generateDefaultConfig(username string) string {
+	repoExample := "owner/repo"
+	if username != "" {
+		repoExample = username + "/my-repo"
+	}
+
+	return fmt.Sprintf(`# Proof configuration
+# See: https://github.com/chaz8081/proof
+
+# Repos to watch for review requests
+# Use owner/repo for specific repos, or org/* for all repos in an org
+repos:
+  - %s
+
+# Teams whose review requests you want to monitor (optional)
+# teams:
+#   - org/team-name
+
+# Polling behavior
+poll:
+  ignore_drafts: true    # Skip draft PRs
+  ignore_wip: true       # Skip PRs with WIP in title
+  # max_files: 50        # Skip PRs with too many files
+  # max_diff_bytes: 0    # Skip PRs with diffs larger than this (bytes)
+
+# Review settings
+review:
+  default_verdict: COMMENT  # APPROVE, REQUEST_CHANGES, or COMMENT
+  model: gpt-4.1            # AI model to use (gpt-4.1, claude-haiku-4.5, gpt-5-mini)
+  # instructions: |         # Custom review instructions appended to AI prompt
+  #   Focus on security and error handling.
+  #   Flag any hardcoded credentials.
+`, repoExample)
+}
+
 func newConfigInitCmd(cfgPath string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
@@ -44,18 +89,21 @@ func newConfigInitCmd(cfgPath string) *cobra.Command {
 				return fmt.Errorf("creating config directory: %w", err)
 			}
 
-			cfg := config.DefaultConfig()
-			data, err := yaml.Marshal(cfg)
-			if err != nil {
-				return fmt.Errorf("marshaling config: %w", err)
-			}
+			username := detectGitHubUser()
+			data := generateDefaultConfig(username)
 
-			if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+			if err := os.WriteFile(cfgPath, []byte(data), 0644); err != nil {
 				return fmt.Errorf("writing config: %w", err)
 			}
 
-			cmd.Printf("Config created at %s\n", cfgPath)
-			cmd.Println("Edit it to add your repos and teams.")
+			cmd.Printf("Config created at %s\n\n", cfgPath)
+			if username != "" {
+				cmd.Printf("Detected GitHub user: %s\n", username)
+			}
+			cmd.Println("Next steps:")
+			cmd.Println("  1. Edit the config to add your repos")
+			cmd.Println("  2. Run 'proof poll --dry-run' to test")
+			cmd.Println("  3. Run 'proof poll' to start reviewing")
 			return nil
 		},
 	}
