@@ -11,6 +11,13 @@ All notable changes to Proof are documented here.
 - **Team review support** — `FindReviewRequests` now searches for `team-review-requested:` in addition to `review-requested:@me`, with deduplication
 - **Shorthand verdict flags** — `proof submit --approve` and `--request-changes` as alternatives to `--verdict`
 - **Config-driven default verdict** — `review.default_verdict` in config is used when no `--verdict` flag is passed
+- **Custom review instructions** — `review.instructions` config field appends custom guidance to the AI system prompt (e.g., project-specific conventions)
+- **Model selection** — `review.model` config field + `proof poll --model` flag; defaults to `gpt-4.1`, overridable per-run
+- **Auto-detect GITHUB_TOKEN** — falls back to `gh auth token` when env var is not set
+- **Verdict validation** — rejects invalid verdict values before sending to GitHub API
+- **Diff size guardrail** — `poll.max_diff_bytes` config skips oversized PRs to prevent timeouts
+- **`proof dismiss` command** — delete a pending review from GitHub and clean up local store
+- **Out-of-hunk line filtering** — comments with invalid line numbers are filtered before review creation, preventing GitHub 422 errors
 
 ### Fixed
 - `proof poll` no longer creates duplicate pending reviews when run multiple times
@@ -18,6 +25,8 @@ All notable changes to Proof are documented here.
 - `truncate` function is rune-safe for multi-byte UTF-8 characters
 - Replaced custom `containsStr` test helpers with `strings.Contains`
 - Search results capped at `PerPage: 100` to avoid silent truncation
+- Improved error messages across all commands with actionable guidance
+- Removed dead code from ratelimit.go (125→43 lines)
 
 ### Architecture Decisions
 - **GitHub-native reviews over local drafts** — pending reviews on GitHub eliminate local markdown storage, parsing contracts, and the need for an editor integration. Trade-off: requires browser for curation. Decision validated by end-to-end testing.
