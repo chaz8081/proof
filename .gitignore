@@ -1,0 +1,19 @@
+# Binaries
+/proof
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test
+*.test
+*.out
+cover.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store

@@ -1,0 +1,14 @@
+// internal/cli/root.go
+package cli
+
+import "github.com/spf13/cobra"
+
+var rootCmd = &cobra.Command{
+	Use:   "proof",
+	Short: "AI-assisted PR review with human-in-the-loop",
+	Long:  `Proof pre-reviews GitHub PRs using AI, creates pending reviews for you to curate, then lets you submit when ready. Let it rise before you bake it in.`,
+}
+
+func Execute() error {
+	return rootCmd.Execute()
+}
