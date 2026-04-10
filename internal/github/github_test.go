@@ -88,6 +88,51 @@ func TestFindReviewRequests_SkipsDrafts(t *testing.T) {
 	}
 }
 
+func TestGetPRContext(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/pulls/1", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") == "application/vnd.github.diff" {
+			w.Write([]byte("diff --git a/main.go b/main.go\n"))
+			return
+		}
+		pr := &gh.PullRequest{
+			Number: gh.Ptr(1),
+			Title:  gh.Ptr("Add feature"),
+			Body:   gh.Ptr("This adds a feature"),
+			Head:   &gh.PullRequestBranch{Ref: gh.Ptr("feature")},
+			Base:   &gh.PullRequestBranch{Ref: gh.Ptr("main")},
+			User:   &gh.User{Login: gh.Ptr("alice")},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(pr)
+	})
+
+	mux.HandleFunc("/repos/owner/repo/pulls/1/files", func(w http.ResponseWriter, r *http.Request) {
+		files := []*gh.CommitFile{
+			{Filename: gh.Ptr("main.go")},
+			{Filename: gh.Ptr("util.go")},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(files)
+	})
+
+	client := testClient(t, mux)
+	prCtx, err := client.GetPRContext(context.Background(), "owner", "repo", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if prCtx.Title != "Add feature" {
+		t.Errorf("unexpected title: %q", prCtx.Title)
+	}
+	if prCtx.Diff == "" {
+		t.Error("expected non-empty diff")
+	}
+	if len(prCtx.Files) != 2 {
+		t.Errorf("expected 2 files, got %d", len(prCtx.Files))
+	}
+}
+
 func containsStr(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

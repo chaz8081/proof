@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chaz8081/proof/internal/review"
 	gh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
 )
@@ -107,6 +108,39 @@ func (c *Client) FindReviewRequests(ctx context.Context, repos []string, opts ..
 	}
 
 	return prs, nil
+}
+
+// GetPRContext fetches all context needed for AI review: PR metadata, diff, and file list.
+func (c *Client) GetPRContext(ctx context.Context, owner, repo string, number int) (*review.PRContext, error) {
+	pr, _, err := c.gh.PullRequests.Get(ctx, owner, repo, number)
+	if err != nil {
+		return nil, fmt.Errorf("getting PR: %w", err)
+	}
+
+	diff, _, err := c.gh.PullRequests.GetRaw(ctx, owner, repo, number, gh.RawOptions{Type: gh.Diff})
+	if err != nil {
+		return nil, fmt.Errorf("getting diff: %w", err)
+	}
+
+	commitFiles, _, err := c.gh.PullRequests.ListFiles(ctx, owner, repo, number, nil)
+	if err != nil {
+		return nil, fmt.Errorf("listing files: %w", err)
+	}
+
+	files := make([]string, len(commitFiles))
+	for i, f := range commitFiles {
+		files[i] = f.GetFilename()
+	}
+
+	return &review.PRContext{
+		Owner:       owner,
+		Repo:        repo,
+		Number:      number,
+		Title:       pr.GetTitle(),
+		Description: pr.GetBody(),
+		Diff:        diff,
+		Files:       files,
+	}, nil
 }
 
 // parseRepoURL extracts owner/repo from a GitHub API repository URL.
