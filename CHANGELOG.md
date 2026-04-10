@@ -18,6 +18,9 @@ All notable changes to Proof are documented here.
 - **Diff size guardrail** — `poll.max_diff_bytes` config skips oversized PRs to prevent timeouts
 - **`proof dismiss` command** — delete a pending review from GitHub and clean up local store
 - **Out-of-hunk line filtering** — comments with invalid line numbers are filtered before review creation, preventing GitHub 422 errors
+- **`proof poll --re-review`** — force fresh AI review on PRs that already have a pending review (deletes existing, creates new)
+- **`proof config validate`** — validates config file and reports issues (empty repos, invalid verdicts, negative values)
+- **Integration test harness** — shared `testutil` package with `NewTestClient`, fixture loading, and mock helpers for cross-package testing
 
 ### Fixed
 - `proof poll` no longer creates duplicate pending reviews when run multiple times
