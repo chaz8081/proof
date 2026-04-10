@@ -253,6 +253,147 @@ func TestLoadConfig_MaxDiffBytes_DefaultsToZero(t *testing.T) {
 	}
 }
 
+func TestValidate_NoIssues(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{"owner/repo", "myorg/*"},
+		Review: ReviewConfig{
+			DefaultVerdict: "COMMENT",
+		},
+		Poll: PollConfig{
+			MaxFiles:     10,
+			MaxDiffBytes: 1024,
+		},
+	}
+	issues := cfg.Validate()
+	if len(issues) != 0 {
+		t.Errorf("expected no issues, got: %v", issues)
+	}
+}
+
+func TestValidate_EmptyRepos(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{},
+	}
+	issues := cfg.Validate()
+	if len(issues) == 0 {
+		t.Fatal("expected issue for empty repos, got none")
+	}
+	found := false
+	for _, issue := range issues {
+		if issue == "no repos configured — add repos to watch for review requests" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected empty repos message, got: %v", issues)
+	}
+}
+
+func TestValidate_InvalidRepoFormat(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{"validorg/repo", "noslash"},
+	}
+	issues := cfg.Validate()
+	if len(issues) == 0 {
+		t.Fatal("expected issue for invalid repo format, got none")
+	}
+	found := false
+	for _, issue := range issues {
+		if issue == `invalid repo "noslash" — expected owner/repo or org/*` {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected invalid repo message for 'noslash', got: %v", issues)
+	}
+}
+
+func TestValidate_InvalidDefaultVerdict(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{"owner/repo"},
+		Review: ReviewConfig{
+			DefaultVerdict: "LGTM",
+		},
+	}
+	issues := cfg.Validate()
+	if len(issues) == 0 {
+		t.Fatal("expected issue for invalid verdict, got none")
+	}
+	found := false
+	for _, issue := range issues {
+		if issue == `invalid default_verdict "LGTM" — must be APPROVE, REQUEST_CHANGES, or COMMENT` {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected invalid verdict message, got: %v", issues)
+	}
+}
+
+func TestValidate_NegativeMaxFiles(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{"owner/repo"},
+		Poll:  PollConfig{MaxFiles: -1},
+	}
+	issues := cfg.Validate()
+	if len(issues) == 0 {
+		t.Fatal("expected issue for negative max_files, got none")
+	}
+	found := false
+	for _, issue := range issues {
+		if issue == "max_files cannot be negative" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected negative max_files message, got: %v", issues)
+	}
+}
+
+func TestValidate_NegativeMaxDiffBytes(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{"owner/repo"},
+		Poll:  PollConfig{MaxDiffBytes: -100},
+	}
+	issues := cfg.Validate()
+	if len(issues) == 0 {
+		t.Fatal("expected issue for negative max_diff_bytes, got none")
+	}
+	found := false
+	for _, issue := range issues {
+		if issue == "max_diff_bytes cannot be negative" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected negative max_diff_bytes message, got: %v", issues)
+	}
+}
+
+func TestValidate_MultipleIssues(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{},
+		Poll:  PollConfig{MaxFiles: -1, MaxDiffBytes: -1},
+	}
+	issues := cfg.Validate()
+	if len(issues) < 3 {
+		t.Errorf("expected at least 3 issues, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestValidate_EmptyVerdictIsSkipped(t *testing.T) {
+	cfg := &Config{
+		Repos: []string{"owner/repo"},
+		Review: ReviewConfig{
+			DefaultVerdict: "",
+		},
+	}
+	issues := cfg.Validate()
+	if len(issues) != 0 {
+		t.Errorf("expected no issues for empty verdict (no validation), got: %v", issues)
+	}
+}
+
 func TestLoadConfig_ModelNotOverriddenWhenExplicit(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

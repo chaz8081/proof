@@ -11,21 +11,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func init() {
-	configCmd := &cobra.Command{
-		Use:   "config",
-		Short: "Show or manage configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
-			data, err := os.ReadFile(cfgPath)
-			if err != nil {
-				return fmt.Errorf("no config found — run 'proof config init' to create one")
-			}
-			cmd.Println(string(data))
-			return nil
-		},
-	}
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Show or manage configuration",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
+		data, err := os.ReadFile(cfgPath)
+		if err != nil {
+			return fmt.Errorf("no config found — run 'proof config init' to create one")
+		}
+		cmd.Println(string(data))
+		return nil
+	},
+}
 
+func init() {
 	cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
 	configCmd.AddCommand(newConfigInitCmd(cfgPath))
 	rootCmd.AddCommand(configCmd)

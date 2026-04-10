@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -61,6 +62,37 @@ func DefaultConfig() *Config {
 	}
 	_ = applyDefaults(cfg) // defaults are always valid
 	return cfg
+}
+
+func (c *Config) Validate() []string {
+	var issues []string
+
+	if len(c.Repos) == 0 {
+		issues = append(issues, "no repos configured — add repos to watch for review requests")
+	}
+
+	for _, r := range c.Repos {
+		if !strings.Contains(r, "/") {
+			issues = append(issues, fmt.Sprintf("invalid repo %q — expected owner/repo or org/*", r))
+		}
+	}
+
+	if c.Review.DefaultVerdict != "" {
+		valid := map[string]bool{"APPROVE": true, "REQUEST_CHANGES": true, "COMMENT": true}
+		if !valid[c.Review.DefaultVerdict] {
+			issues = append(issues, fmt.Sprintf("invalid default_verdict %q — must be APPROVE, REQUEST_CHANGES, or COMMENT", c.Review.DefaultVerdict))
+		}
+	}
+
+	if c.Poll.MaxFiles < 0 {
+		issues = append(issues, "max_files cannot be negative")
+	}
+
+	if c.Poll.MaxDiffBytes < 0 {
+		issues = append(issues, "max_diff_bytes cannot be negative")
+	}
+
+	return issues
 }
 
 func boolPtr(v bool) *bool { return &v }
