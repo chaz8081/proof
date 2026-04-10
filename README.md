@@ -69,7 +69,15 @@ review:
   default_verdict: COMMENT
 ```
 
-## Building
+## Development
+
+### Prerequisites
+
+- Go 1.21+
+- [GitHub Copilot CLI](https://github.com/github/copilot-cli) (for AI reviews)
+- `gh` CLI authenticated with GitHub
+
+### Building
 
 The Copilot SDK integration requires a build tag:
 
