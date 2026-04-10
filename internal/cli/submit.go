@@ -4,11 +4,13 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/chaz8081/proof/internal/config"
 	proofgh "github.com/chaz8081/proof/internal/github"
+	proofstore "github.com/chaz8081/proof/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +54,8 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+
 			resolved, err := resolveVerdict(approve, requestChanges, verdict)
 			if err != nil {
 				return err
@@ -91,6 +95,10 @@ func init() {
 
 			if err := ghClient.SubmitReview(ctx, owner, repo, number, reviewID, event); err != nil {
 				return fmt.Errorf("submitting review: %w", err)
+			}
+
+			if err := pendingStore.Remove(owner, repo, number); err != nil {
+				cmd.PrintErrf("Warning: Failed to update pending review store: %v\n", err)
 			}
 
 			cmd.Printf("Review submitted on %s/%s#%d as %s\n", owner, repo, number, event)
