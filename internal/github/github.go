@@ -4,6 +4,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -376,4 +377,118 @@ func parseRepoURL(url string) (string, string) {
 		return parts[len(parts)-2], parts[len(parts)-1]
 	}
 	return "", ""
+}
+
+// FetchRepoInstructions fetches instruction files from the target repo.
+func (c *Client) FetchRepoInstructions(ctx context.Context, owner, repo string, changedFiles []string) (*review.RepoInstructions, error) {
+	instructions := &review.RepoInstructions{}
+
+	// 1. Try .github/copilot-instructions.md
+	content, err := c.fetchFileContent(ctx, owner, repo, ".github/copilot-instructions.md")
+	if err == nil {
+		instructions.RepoWide = content
+	}
+
+	// 2. Try .github/instructions/ directory
+	_, dirContent, _, err := c.gh.Repositories.GetContents(ctx, owner, repo, ".github/instructions", nil)
+	if err == nil {
+		for _, file := range dirContent {
+			if !strings.HasSuffix(file.GetName(), ".instructions.md") {
+				continue
+			}
+			body, err := c.fetchFileContent(ctx, owner, repo, file.GetPath())
+			if err != nil {
+				continue
+			}
+			// Check if any changed file matches the applyTo glob in frontmatter
+			if matchesChangedFiles(body, changedFiles) {
+				// Strip frontmatter before adding
+				instructions.PathSpecific = append(instructions.PathSpecific, stripFrontmatter(body))
+			}
+		}
+	}
+
+	// 3. Try AGENTS.md
+	content, err = c.fetchFileContent(ctx, owner, repo, "AGENTS.md")
+	if err == nil {
+		instructions.AgentInstructions = content
+	}
+
+	return instructions, nil
+}
+
+// fetchFileContent retrieves the decoded text content of a single file via the GitHub contents API.
+// Returns an error if the path is a directory, the file cannot be retrieved, or the content exceeds 100KB.
+func (c *Client) fetchFileContent(ctx context.Context, owner, repo, path string) (string, error) {
+	fileContent, _, _, err := c.gh.Repositories.GetContents(ctx, owner, repo, path, nil)
+	if err != nil {
+		return "", err
+	}
+	if fileContent == nil {
+		return "", fmt.Errorf("not a file: %s", path)
+	}
+	content, err := fileContent.GetContent()
+	if err != nil {
+		return "", err
+	}
+	// Skip files > 100KB
+	if len(content) > 100*1024 {
+		return "", fmt.Errorf("file too large: %s (%d bytes)", path, len(content))
+	}
+	return content, nil
+}
+
+// matchesChangedFiles reports whether any of the changed files matches the applyTo glob
+// extracted from the file's YAML frontmatter. If no applyTo pattern is present, the
+// instructions apply to all files and the function returns true.
+func matchesChangedFiles(fileContent string, changedFiles []string) bool {
+	pattern := extractApplyTo(fileContent)
+	if pattern == "" {
+		return true // no pattern = applies to everything
+	}
+	for _, f := range changedFiles {
+		matched, _ := filepath.Match(pattern, f)
+		if matched {
+			return true
+		}
+		// Also try matching just the filename for ** patterns
+		matched, _ = filepath.Match(pattern, filepath.Base(f))
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
+// extractApplyTo parses the applyTo field from YAML frontmatter delimited by --- markers.
+func extractApplyTo(content string) string {
+	// Simple frontmatter parser — look for applyTo between --- markers
+	if !strings.HasPrefix(content, "---") {
+		return ""
+	}
+	end := strings.Index(content[3:], "---")
+	if end < 0 {
+		return ""
+	}
+	frontmatter := content[3 : 3+end]
+	for _, line := range strings.Split(frontmatter, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "applyTo:") {
+			val := strings.TrimPrefix(line, "applyTo:")
+			return strings.Trim(strings.TrimSpace(val), "\"'")
+		}
+	}
+	return ""
+}
+
+// stripFrontmatter removes the leading --- ... --- YAML frontmatter block from content.
+func stripFrontmatter(content string) string {
+	if !strings.HasPrefix(content, "---") {
+		return content
+	}
+	end := strings.Index(content[3:], "---")
+	if end < 0 {
+		return content
+	}
+	return strings.TrimSpace(content[3+end+3:])
 }

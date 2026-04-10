@@ -117,6 +117,14 @@ func init() {
 					reviewModel = model
 				}
 
+				repoInstructions, err := ghClient.FetchRepoInstructions(ctx, pr.Owner, pr.Repo, prCtx.Files)
+				if err != nil {
+					cmd.PrintErrf("  Warning: Failed to fetch repo instructions: %v\n", err)
+				}
+				if repoInstructions != nil {
+					prCtx.RepoInstructions = *repoInstructions
+				}
+
 				prCtx.Instructions = cfg.Review.Instructions
 				prCtx.Model = reviewModel
 				result, err := reviewer.Review(ctx, *prCtx)

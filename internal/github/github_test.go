@@ -3,6 +3,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -643,6 +644,331 @@ func TestCreatePendingReview_DropsInvalidLines(t *testing.T) {
 	rawComments, _ := capturedBody["comments"].([]any)
 	if len(rawComments) != 1 {
 		t.Errorf("expected 1 comment sent to GitHub, got %d", len(rawComments))
+	}
+}
+
+// --- helpers for FetchRepoInstructions tests ---
+
+// encodedContent returns the base64-encoded form of s (mimicking GitHub's API encoding).
+func encodedContent(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
+}
+
+// fileContentJSON builds a minimal GitHub RepositoryContent JSON object with base64 encoding.
+func fileContentJSON(name, path, content string) string {
+	encoded := encodedContent(content)
+	return `{"type":"file","name":"` + name + `","path":"` + path + `","encoding":"base64","content":"` + encoded + `"}`
+}
+
+// dirContentJSON builds a minimal GitHub directory listing JSON array.
+func dirContentJSON(files []struct{ Name, Path string }) string {
+	var items []string
+	for _, f := range files {
+		items = append(items, `{"type":"file","name":"`+f.Name+`","path":"`+f.Path+`"}`)
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
+func TestFetchRepoInstructions_AllPresent(t *testing.T) {
+	mux := http.NewServeMux()
+
+	// Serve .github/copilot-instructions.md
+	mux.HandleFunc("/repos/owner/repo/contents/.github/copilot-instructions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fileContentJSON("copilot-instructions.md", ".github/copilot-instructions.md", "Repo-wide review rules.")))
+	})
+
+	// Serve .github/instructions directory listing
+	mux.HandleFunc("/repos/owner/repo/contents/.github/instructions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(dirContentJSON([]struct{ Name, Path string }{
+			{"go.instructions.md", ".github/instructions/go.instructions.md"},
+		})))
+	})
+
+	// Serve the path-specific file with a matching glob
+	mux.HandleFunc("/repos/owner/repo/contents/.github/instructions/go.instructions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body := "---\napplyTo: \"**/*.go\"\n---\nAlways handle errors in Go."
+		w.Write([]byte(fileContentJSON("go.instructions.md", ".github/instructions/go.instructions.md", body)))
+	})
+
+	// Serve AGENTS.md
+	mux.HandleFunc("/repos/owner/repo/contents/AGENTS.md", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(fileContentJSON("AGENTS.md", "AGENTS.md", "Agent instructions here.")))
+	})
+
+	client := testClient(t, mux)
+	ri, err := client.FetchRepoInstructions(context.Background(), "owner", "repo", []string{"pkg/foo.go"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ri.RepoWide != "Repo-wide review rules." {
+		t.Errorf("unexpected RepoWide: %q", ri.RepoWide)
+	}
+	if len(ri.PathSpecific) != 1 {
+		t.Fatalf("expected 1 path-specific instruction, got %d", len(ri.PathSpecific))
+	}
+	if !strings.Contains(ri.PathSpecific[0], "Always handle errors") {
+		t.Errorf("unexpected PathSpecific content: %q", ri.PathSpecific[0])
+	}
+	if strings.Contains(ri.PathSpecific[0], "applyTo") {
+		t.Error("expected frontmatter stripped from path-specific instruction")
+	}
+	if ri.AgentInstructions != "Agent instructions here." {
+		t.Errorf("unexpected AgentInstructions: %q", ri.AgentInstructions)
+	}
+}
+
+func TestFetchRepoInstructions_MissingFilesSkipped(t *testing.T) {
+	mux := http.NewServeMux()
+
+	// All endpoints return 404
+	mux.HandleFunc("/repos/owner/repo/contents/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"message":"Not Found"}`))
+	})
+
+	client := testClient(t, mux)
+	ri, err := client.FetchRepoInstructions(context.Background(), "owner", "repo", []string{"main.go"})
+	if err != nil {
+		t.Fatalf("expected no error when files are missing, got: %v", err)
+	}
+	if ri.RepoWide != "" {
+		t.Errorf("expected empty RepoWide, got: %q", ri.RepoWide)
+	}
+	if len(ri.PathSpecific) != 0 {
+		t.Errorf("expected no PathSpecific, got: %v", ri.PathSpecific)
+	}
+	if ri.AgentInstructions != "" {
+		t.Errorf("expected empty AgentInstructions, got: %q", ri.AgentInstructions)
+	}
+}
+
+func TestFetchRepoInstructions_GlobNoMatch(t *testing.T) {
+	mux := http.NewServeMux()
+
+	// copilot-instructions.md missing
+	mux.HandleFunc("/repos/owner/repo/contents/.github/copilot-instructions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	// Directory has a Go-specific instructions file
+	mux.HandleFunc("/repos/owner/repo/contents/.github/instructions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(dirContentJSON([]struct{ Name, Path string }{
+			{"go.instructions.md", ".github/instructions/go.instructions.md"},
+		})))
+	})
+
+	// File only applies to *.go but changed files are TypeScript
+	mux.HandleFunc("/repos/owner/repo/contents/.github/instructions/go.instructions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body := "---\napplyTo: \"**/*.go\"\n---\nGo-specific instructions."
+		w.Write([]byte(fileContentJSON("go.instructions.md", ".github/instructions/go.instructions.md", body)))
+	})
+
+	// AGENTS.md missing
+	mux.HandleFunc("/repos/owner/repo/contents/AGENTS.md", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	client := testClient(t, mux)
+	ri, err := client.FetchRepoInstructions(context.Background(), "owner", "repo", []string{"src/app.ts", "src/utils.ts"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ri.PathSpecific) != 0 {
+		t.Errorf("expected no path-specific instructions when glob doesn't match, got: %v", ri.PathSpecific)
+	}
+}
+
+func TestFetchRepoInstructions_NonInstructionFilesSkipped(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/contents/.github/copilot-instructions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	// Directory contains a mix of files — only .instructions.md files should be used
+	mux.HandleFunc("/repos/owner/repo/contents/.github/instructions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(dirContentJSON([]struct{ Name, Path string }{
+			{"go.instructions.md", ".github/instructions/go.instructions.md"},
+			{"README.md", ".github/instructions/README.md"},
+			{"notes.txt", ".github/instructions/notes.txt"},
+		})))
+	})
+
+	mux.HandleFunc("/repos/owner/repo/contents/.github/instructions/go.instructions.md", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		body := "Go instructions without frontmatter."
+		w.Write([]byte(fileContentJSON("go.instructions.md", ".github/instructions/go.instructions.md", body)))
+	})
+
+	mux.HandleFunc("/repos/owner/repo/contents/AGENTS.md", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	client := testClient(t, mux)
+	ri, err := client.FetchRepoInstructions(context.Background(), "owner", "repo", []string{"main.go"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Only the .instructions.md file should be included (no frontmatter = matches all)
+	if len(ri.PathSpecific) != 1 {
+		t.Errorf("expected 1 path-specific instruction, got %d", len(ri.PathSpecific))
+	}
+}
+
+// --- Unit tests for helper functions ---
+
+func TestExtractApplyTo(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "double-quoted glob",
+			input:    "---\napplyTo: \"**/*.go\"\n---\nContent here.",
+			expected: "**/*.go",
+		},
+		{
+			name:     "single-quoted glob",
+			input:    "---\napplyTo: '**/*.ts'\n---\nContent.",
+			expected: "**/*.ts",
+		},
+		{
+			name:     "unquoted glob",
+			input:    "---\napplyTo: **/*.go\n---\nContent.",
+			expected: "**/*.go",
+		},
+		{
+			name:     "no frontmatter",
+			input:    "Just plain content.",
+			expected: "",
+		},
+		{
+			name:     "frontmatter without applyTo",
+			input:    "---\ntitle: My Instructions\n---\nContent.",
+			expected: "",
+		},
+		{
+			name:     "unclosed frontmatter",
+			input:    "---\napplyTo: \"**/*.go\"\nContent without closing.",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractApplyTo(tt.input)
+			if got != tt.expected {
+				t.Errorf("extractApplyTo(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestStripFrontmatter(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "strips frontmatter",
+			input:    "---\napplyTo: \"**/*.go\"\n---\nActual content here.",
+			expected: "Actual content here.",
+		},
+		{
+			name:     "no frontmatter passthrough",
+			input:    "Just plain content.",
+			expected: "Just plain content.",
+		},
+		{
+			name:     "unclosed frontmatter passthrough",
+			input:    "---\napplyTo: test\nNo closing markers.",
+			expected: "---\napplyTo: test\nNo closing markers.",
+		},
+		{
+			name:     "trims leading whitespace after frontmatter",
+			input:    "---\napplyTo: x\n---\n\n  Content with leading space.",
+			expected: "Content with leading space.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripFrontmatter(tt.input)
+			if got != tt.expected {
+				t.Errorf("stripFrontmatter(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestMatchesChangedFiles(t *testing.T) {
+	tests := []struct {
+		name         string
+		fileContent  string
+		changedFiles []string
+		want         bool
+	}{
+		{
+			name:         "no pattern matches all",
+			fileContent:  "Instructions without frontmatter.",
+			changedFiles: []string{"any/file.go"},
+			want:         true,
+		},
+		{
+			name:         "glob matches full path",
+			fileContent:  "---\napplyTo: \"**/*.go\"\n---\nContent.",
+			changedFiles: []string{"pkg/foo.go"},
+			want:         true,
+		},
+		{
+			name:         "glob matches basename",
+			fileContent:  "---\napplyTo: \"*.go\"\n---\nContent.",
+			changedFiles: []string{"pkg/internal/bar.go"},
+			want:         true,
+		},
+		{
+			name:         "glob no match",
+			fileContent:  "---\napplyTo: \"**/*.go\"\n---\nContent.",
+			changedFiles: []string{"src/app.ts", "src/index.ts"},
+			want:         false,
+		},
+		{
+			name:         "empty changed files with pattern",
+			fileContent:  "---\napplyTo: \"**/*.go\"\n---\nContent.",
+			changedFiles: []string{},
+			want:         false,
+		},
+		{
+			name:         "empty changed files without pattern",
+			fileContent:  "No frontmatter.",
+			changedFiles: []string{},
+			want:         true,
+		},
+		{
+			name:         "one of multiple files matches",
+			fileContent:  "---\napplyTo: \"**/*.go\"\n---\nContent.",
+			changedFiles: []string{"src/app.ts", "pkg/main.go", "README.md"},
+			want:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesChangedFiles(tt.fileContent, tt.changedFiles)
+			if got != tt.want {
+				t.Errorf("matchesChangedFiles() = %v, want %v (pattern=%q, files=%v)",
+					got, tt.want, extractApplyTo(tt.fileContent), tt.changedFiles)
+			}
+		})
 	}
 }
 

@@ -12,16 +12,23 @@ type Reviewer interface {
 	Review(ctx context.Context, pr PRContext) (*ReviewResult, error)
 }
 
+type RepoInstructions struct {
+	RepoWide          string   // from .github/copilot-instructions.md
+	PathSpecific      []string // from matching .github/instructions/*.instructions.md
+	AgentInstructions string   // from AGENTS.md
+}
+
 type PRContext struct {
-	Owner        string
-	Repo         string
-	Number       int
-	Title        string
-	Description  string
-	Diff         string
-	Files        []string
-	Instructions string
-	Model        string
+	Owner            string
+	Repo             string
+	Number           int
+	Title            string
+	Description      string
+	Diff             string
+	Files            []string
+	Instructions     string
+	Model            string
+	RepoInstructions RepoInstructions
 }
 
 type ReviewResult struct {
