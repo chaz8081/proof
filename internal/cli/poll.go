@@ -3,6 +3,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"time"
 
@@ -17,12 +19,34 @@ func init() {
 	var dryRun bool
 	var model string
 	var reReview bool
+	var every string
 
 	pollCmd := &cobra.Command{
 		Use:   "poll",
 		Short: "Check for PRs needing review and generate AI draft reviews",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+
+			// Parse --every flag and set up watch mode
+			var duration time.Duration
+			var sigCh chan os.Signal
+			if every != "" {
+				var err error
+				duration, err = time.ParseDuration(every)
+				if err != nil {
+					return fmt.Errorf("invalid --every value %q: %w (examples: 5m, 30m, 1h)", every, err)
+				}
+				if duration < 1*time.Minute {
+					return fmt.Errorf("--every interval must be at least 1 minute")
+				}
+				cmd.Printf("Watching for review requests every %s (Ctrl+C to stop)\n\n", duration)
+
+				sigCh = make(chan os.Signal, 1)
+				signal.Notify(sigCh, os.Interrupt)
+				defer signal.Stop(sigCh)
+			}
+
+			for {
 
 			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 
@@ -53,10 +77,11 @@ func init() {
 
 			if len(prs) == 0 {
 				cmd.Println("No PRs waiting for your review.")
-				return nil
-			}
-
-			cmd.Printf("Found %d PR(s) requesting your review:\n\n", len(prs))
+				if every == "" {
+					return nil
+				}
+			} else {
+				cmd.Printf("Found %d PR(s) requesting your review:\n\n", len(prs))
 			for _, pr := range prs {
 				cmd.Printf("  • %s/%s#%d — %s (by @%s)\n", pr.Owner, pr.Repo, pr.Number, pr.Title, pr.Author)
 			}
@@ -153,13 +178,30 @@ func init() {
 					reviewID, len(result.Comments), result.Verdict)
 				cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", pr.Owner, pr.Repo, pr.Number)
 			}
+			}
 
-			return nil
+			if every == "" {
+				return nil // single run, exit
+			}
+
+			// Watch mode: wait for next tick or signal
+			select {
+			case <-time.After(duration):
+				cmd.Println()
+				continue
+			case <-sigCh:
+				cmd.Println("\nStopped watching.")
+				return nil
+			case <-ctx.Done():
+				return nil
+			}
+		}
 		},
 	}
 
 	pollCmd.Flags().BoolVar(&dryRun, "dry-run", false, "List PRs without generating reviews")
 	pollCmd.Flags().StringVar(&model, "model", "", "AI model to use (overrides config)")
 	pollCmd.Flags().BoolVar(&reReview, "re-review", false, "Force re-review of PRs with existing pending reviews")
+	pollCmd.Flags().StringVar(&every, "every", "", "Poll repeatedly at this interval (e.g., 5m, 1h)")
 	rootCmd.AddCommand(pollCmd)
 }

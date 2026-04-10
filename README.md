@@ -79,4 +79,7 @@ go build -tags=copilot -o proof ./cmd/proof
 
 # Without Copilot SDK (poll --dry-run, list, submit still work)
 go build -o proof ./cmd/proof
+
+# Build with version info
+go build -tags=copilot -ldflags "-X github.com/chaz8081/proof/internal/cli.Version=v1.0.0 -X github.com/chaz8081/proof/internal/cli.Commit=$(git rev-parse --short HEAD) -X github.com/chaz8081/proof/internal/cli.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o proof ./cmd/proof
 ```
