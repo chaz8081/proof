@@ -971,4 +971,3 @@ func TestMatchesChangedFiles(t *testing.T) {
 		})
 	}
 }
-

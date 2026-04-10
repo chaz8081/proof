@@ -45,19 +45,36 @@ export GITHUB_TOKEN=$(gh auth token)
 ## Usage
 
 ```bash
-# Check for PRs and generate AI reviews (creates pending reviews on GitHub)
+# Review a specific PR directly
+proof poll owner/repo#123
+
+# Scan all configured repos for PRs needing review
 proof poll
+
+# Watch mode — poll every 5 minutes
+proof poll --every 5m
 
 # List only — don't generate reviews yet
 proof poll --dry-run
 
 # Show your pending reviews
 proof list
+proof list -o json              # machine-readable output
+
+# Preview a pending review before submitting
+proof show owner/repo#123
+proof show owner/repo#123 -o json
 
 # Submit a pending review
 proof submit owner/repo#123
-proof submit owner/repo#123 --verdict APPROVE
-proof submit owner/repo#123 --verdict REQUEST_CHANGES
+proof submit owner/repo#123 --approve
+proof submit owner/repo#123 --request-changes
+
+# Delete a pending review
+proof dismiss owner/repo#123
+
+# Force re-review (delete existing + create fresh)
+proof poll owner/repo#123 --re-review
 ```
 
 ## How It Works

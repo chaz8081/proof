@@ -69,10 +69,10 @@ func TestResolveVerdict(t *testing.T) {
 			wantErr:        true,
 		},
 		{
-			name:        "--approve and --verdict together returns error",
-			approve:     true,
-			verdict:     "COMMENT",
-			wantErr:     true,
+			name:    "--approve and --verdict together returns error",
+			approve: true,
+			verdict: "COMMENT",
+			wantErr: true,
 		},
 		{
 			name:           "--request-changes and --verdict together returns error",

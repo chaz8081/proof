@@ -102,4 +102,3 @@ func TestInlineComment_FormattedBody(t *testing.T) {
 		})
 	}
 }
-

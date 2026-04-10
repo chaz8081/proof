@@ -4,6 +4,8 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-04-10
+
 ### Added
 - **Agent team** — 7 SDLC agent definitions (architect, implementer, reviewer, tester, fixer, planner, ops) for parallel development workflows
 - **Pending review store** — `~/.proof/pending.json` tracks reviews created by `proof poll` so `proof list` finds them even after GitHub removes the review-requested status. Store interface allows future backends (beads, SQLite, etc.)
