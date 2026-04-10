@@ -5,6 +5,9 @@ package review
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -30,11 +33,43 @@ type CopilotReviewer struct {
 
 // NewCopilotReviewer creates a new CopilotReviewer backed by the Copilot SDK.
 func NewCopilotReviewer() (*CopilotReviewer, error) {
+	token, err := resolveGitHubToken()
+	if err != nil {
+		return nil, fmt.Errorf("resolving GitHub token for Copilot: %w", err)
+	}
+
 	client := copilot.NewClient(&copilot.ClientOptions{
-		LogLevel: "error",
+		LogLevel:    "error",
+		GitHubToken: token,
 	})
 
 	return &CopilotReviewer{client: client}, nil
+}
+
+// resolveGitHubToken returns a GitHub OAuth token suitable for the Copilot API.
+// PATs (ghp_) are not accepted; it strips GITHUB_TOKEN from the subprocess env
+// so that `gh auth token` returns the keyring OAuth token (gho_) instead.
+func resolveGitHubToken() (string, error) {
+	cmd := exec.Command("gh", "auth", "token")
+	// Inherit current env but remove GITHUB_TOKEN so gh uses the keyring OAuth token.
+	cmd.Env = make([]string, 0, len(os.Environ()))
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "GITHUB_TOKEN=") {
+			cmd.Env = append(cmd.Env, e)
+		}
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("'gh auth token' failed: %w\nRun 'gh auth login' to authenticate", err)
+	}
+	token := strings.TrimSpace(string(out))
+	if token == "" {
+		return "", fmt.Errorf("'gh auth token' returned empty\nRun 'gh auth login' to authenticate")
+	}
+	if strings.HasPrefix(token, "ghp_") {
+		return "", fmt.Errorf("Copilot API requires an OAuth token, not a PAT\nRun 'gh auth login' with a GitHub account that has Copilot access")
+	}
+	return token, nil
 }
 
 // Start initializes the Copilot CLI server process.
