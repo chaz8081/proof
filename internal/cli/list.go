@@ -4,9 +4,11 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/chaz8081/proof/internal/config"
 	proofgh "github.com/chaz8081/proof/internal/github"
+	proofstore "github.com/chaz8081/proof/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -29,11 +31,35 @@ func init() {
 
 			ghClient := proofgh.NewClient(token)
 
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+
 			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
 				proofgh.WithTeams(cfg.Teams),
 			)
 			if err != nil {
 				return fmt.Errorf("finding review requests: %w", err)
+			}
+
+			stored, err := pendingStore.List()
+			if err != nil {
+				cmd.PrintErrf("Warning: Failed to read pending review store: %v\n", err)
+			} else {
+				// Build a set of PRs already found by search
+				seen := make(map[string]bool)
+				for _, pr := range prs {
+					seen[fmt.Sprintf("%s/%s#%d", pr.Owner, pr.Repo, pr.Number)] = true
+				}
+				// Add stored PRs not found by search
+				for _, rec := range stored {
+					key := fmt.Sprintf("%s/%s#%d", rec.Owner, rec.Repo, rec.Number)
+					if !seen[key] {
+						prs = append(prs, proofgh.PRInfo{
+							Owner:  rec.Owner,
+							Repo:   rec.Repo,
+							Number: rec.Number,
+						})
+					}
+				}
 			}
 
 			found := false
@@ -42,6 +68,10 @@ func init() {
 				if err != nil {
 					cmd.PrintErrf("Warning: Error checking %s/%s#%d: %v\n", pr.Owner, pr.Repo, pr.Number, err)
 					continue
+				}
+				if len(pending) == 0 {
+					// Clean up stale store entry
+					pendingStore.Remove(pr.Owner, pr.Repo, pr.Number)
 				}
 				if len(pending) > 0 {
 					if !found {
