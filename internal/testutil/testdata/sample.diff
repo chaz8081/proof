@@ -1,0 +1,20 @@
+diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,4 +1,6 @@
+ package main
+
++import "fmt"
++
+ func main() {
+-	println("hello")
++	fmt.Println("hello")
+ }
+diff --git a/util.go b/util.go
+--- a/util.go
++++ b/util.go
+@@ -10,3 +10,4 @@
+ func helper() {
+ 	return
++	// new comment
+ }

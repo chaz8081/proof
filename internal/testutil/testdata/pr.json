@@ -1,0 +1,16 @@
+{
+  "number": 42,
+  "title": "Add feature",
+  "body": "This PR adds a new feature.",
+  "state": "open",
+  "draft": false,
+  "user": {
+    "login": "testuser"
+  },
+  "head": {
+    "ref": "feature-branch"
+  },
+  "base": {
+    "ref": "main"
+  }
+}

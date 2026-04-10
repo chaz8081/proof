@@ -1,0 +1,16 @@
+[
+  {
+    "filename": "main.go",
+    "status": "modified",
+    "additions": 3,
+    "deletions": 1,
+    "changes": 4
+  },
+  {
+    "filename": "util.go",
+    "status": "modified",
+    "additions": 1,
+    "deletions": 0,
+    "changes": 1
+  }
+]
