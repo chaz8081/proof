@@ -15,6 +15,7 @@ import (
 
 func init() {
 	var dryRun bool
+	var model string
 
 	pollCmd := &cobra.Command{
 		Use:   "poll",
@@ -96,7 +97,13 @@ func init() {
 					continue
 				}
 
+				reviewModel := cfg.Review.Model
+				if model != "" {
+					reviewModel = model
+				}
+
 				prCtx.Instructions = cfg.Review.Instructions
+				prCtx.Model = reviewModel
 				result, err := reviewer.Review(ctx, *prCtx)
 				if err != nil {
 					cmd.PrintErrf("  Warning: Error during AI review: %v\n", err)
@@ -129,5 +136,6 @@ func init() {
 	}
 
 	pollCmd.Flags().BoolVar(&dryRun, "dry-run", false, "List PRs without generating reviews")
+	pollCmd.Flags().StringVar(&model, "model", "", "AI model to use (overrides config)")
 	rootCmd.AddCommand(pollCmd)
 }

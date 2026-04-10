@@ -174,3 +174,103 @@ func TestLoadConfig_IgnoreDraftsFalse(t *testing.T) {
 		t.Error("expected ignore_drafts to remain false when explicitly set to false")
 	}
 }
+
+func TestLoadConfig_ModelDefault(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte("repos:\n  - owner/repo\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Review.Model != "gpt-4.1" {
+		t.Errorf("expected default model 'gpt-4.1', got %q", cfg.Review.Model)
+	}
+}
+
+func TestLoadConfig_ModelFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte(`
+repos:
+  - owner/repo
+review:
+  model: gpt-4o
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Review.Model != "gpt-4o" {
+		t.Errorf("expected model 'gpt-4o', got %q", cfg.Review.Model)
+	}
+}
+
+func TestLoadConfig_MaxDiffBytes(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte(`
+repos:
+  - owner/repo
+poll:
+  max_diff_bytes: 524288
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Poll.MaxDiffBytes != 524288 {
+		t.Errorf("expected max_diff_bytes 524288, got %d", cfg.Poll.MaxDiffBytes)
+	}
+}
+
+func TestLoadConfig_MaxDiffBytes_DefaultsToZero(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte("repos:\n  - owner/repo\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Poll.MaxDiffBytes != 0 {
+		t.Errorf("expected max_diff_bytes to default to 0 (no limit), got %d", cfg.Poll.MaxDiffBytes)
+	}
+}
+
+func TestLoadConfig_ModelNotOverriddenWhenExplicit(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte(`
+repos:
+  - owner/repo
+review:
+  model: o4-mini
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Review.Model != "o4-mini" {
+		t.Errorf("expected model 'o4-mini' to be preserved, got %q", cfg.Review.Model)
+	}
+}

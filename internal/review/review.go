@@ -21,6 +21,7 @@ type PRContext struct {
 	Diff         string
 	Files        []string
 	Instructions string
+	Model        string
 }
 
 type ReviewResult struct {

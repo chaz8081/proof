@@ -20,11 +20,13 @@ type PollConfig struct {
 	IgnoreDrafts *bool `yaml:"ignore_drafts,omitempty"`
 	IgnoreWIP    bool  `yaml:"ignore_wip,omitempty"`
 	MaxFiles     int   `yaml:"max_files,omitempty"`
+	MaxDiffBytes int   `yaml:"max_diff_bytes,omitempty"`
 }
 
 type ReviewConfig struct {
 	DefaultVerdict string `yaml:"default_verdict,omitempty"`
 	Instructions   string `yaml:"instructions,omitempty"`
+	Model          string `yaml:"model,omitempty"`
 }
 
 func LoadFromPath(path string) (*Config, error) {
@@ -74,6 +76,9 @@ func applyDefaults(cfg *Config) error {
 		cfg.Review.DefaultVerdict = "COMMENT"
 	} else if !validVerdicts[cfg.Review.DefaultVerdict] {
 		return fmt.Errorf("invalid default_verdict %q — must be APPROVE, REQUEST_CHANGES, or COMMENT", cfg.Review.DefaultVerdict)
+	}
+	if cfg.Review.Model == "" {
+		cfg.Review.Model = "gpt-4.1"
 	}
 	if cfg.Poll.IgnoreDrafts == nil {
 		cfg.Poll.IgnoreDrafts = boolPtr(true)

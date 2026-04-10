@@ -50,7 +50,7 @@ func (r *CopilotReviewer) Stop() {
 // Review sends the PR context to Copilot for analysis and returns a structured review.
 func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResult, error) {
 	session, err := r.client.CreateSession(ctx, &copilot.SessionConfig{
-		Model: "gpt-4.1",
+		Model: pr.Model,
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: buildSystemPrompt(pr.Instructions),
