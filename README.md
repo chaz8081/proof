@@ -7,6 +7,26 @@ creates pending reviews for you to curate in GitHub's UI, then lets you submit w
 
 ## Install
 
+### From Release (recommended)
+
+Download the latest binary from [Releases](https://github.com/chaz8081/proof/releases):
+
+```bash
+# macOS (Apple Silicon)
+curl -sL https://github.com/chaz8081/proof/releases/latest/download/proof_darwin_arm64.tar.gz | tar xz
+sudo mv proof /usr/local/bin/
+
+# macOS (Intel)
+curl -sL https://github.com/chaz8081/proof/releases/latest/download/proof_darwin_amd64.tar.gz | tar xz
+sudo mv proof /usr/local/bin/
+
+# Linux (amd64)
+curl -sL https://github.com/chaz8081/proof/releases/latest/download/proof_linux_amd64.tar.gz | tar xz
+sudo mv proof /usr/local/bin/
+```
+
+### From Source
+
 ```bash
 go install -tags=copilot github.com/chaz8081/proof/cmd/proof@latest
 ```

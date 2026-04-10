@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/chaz8081/proof/internal/config"
@@ -20,6 +21,14 @@ type listOutputItem struct {
 	Number   int    `json:"number"`
 	ReviewID int64  `json:"review_id"`
 	Body     string `json:"body"`
+}
+
+type pendingResult struct {
+	Owner    string
+	Repo     string
+	Number   int
+	ReviewID int64
+	Body     string
 }
 
 func init() {
@@ -63,6 +72,17 @@ func init() {
 
 			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 
+			// Phase 1: Local fast path — show stored pending reviews immediately
+			stored, _ := pendingStore.List()
+			if len(stored) > 0 && output != "json" {
+				cmd.Println("Pending reviews (from local store):")
+				for _, rec := range stored {
+					cmd.Printf("  • %s/%s#%d (review ID: %d)\n", rec.Owner, rec.Repo, rec.Number, rec.ReviewID)
+					cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", rec.Owner, rec.Repo, rec.Number)
+				}
+			}
+
+			// Phase 2: Verify against GitHub + find any not in store (concurrent)
 			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
 				proofgh.WithTeams(cfg.Teams),
 			)
@@ -70,41 +90,51 @@ func init() {
 				return fmt.Errorf("finding review requests: %w", err)
 			}
 
-			stored, err := pendingStore.List()
-			if err != nil {
-				cmd.PrintErrf("Warning: Failed to read pending review store: %v\n", err)
-			} else {
-				// Build a set of PRs already found by search
-				seen := make(map[string]bool)
-				for _, pr := range prs {
-					seen[fmt.Sprintf("%s/%s#%d", pr.Owner, pr.Repo, pr.Number)] = true
-				}
-				// Add stored PRs not found by search
-				for _, rec := range stored {
-					key := fmt.Sprintf("%s/%s#%d", rec.Owner, rec.Repo, rec.Number)
-					if !seen[key] {
-						prs = append(prs, proofgh.PRInfo{
-							Owner:  rec.Owner,
-							Repo:   rec.Repo,
-							Number: rec.Number,
-						})
-					}
+			// Merge stored PRs not found by search
+			seen := make(map[string]bool)
+			for _, pr := range prs {
+				seen[fmt.Sprintf("%s/%s#%d", pr.Owner, pr.Repo, pr.Number)] = true
+			}
+			for _, rec := range stored {
+				key := fmt.Sprintf("%s/%s#%d", rec.Owner, rec.Repo, rec.Number)
+				if !seen[key] {
+					prs = append(prs, proofgh.PRInfo{
+						Owner:  rec.Owner,
+						Repo:   rec.Repo,
+						Number: rec.Number,
+					})
 				}
 			}
 
-			if output == "json" {
-				var items []listOutputItem
-				for _, pr := range prs {
+			var (
+				mu      sync.Mutex
+				results []pendingResult
+				wg      sync.WaitGroup
+			)
+
+			// Limit concurrency to avoid rate limit issues
+			sem := make(chan struct{}, 5) // max 5 concurrent API calls
+
+			for _, pr := range prs {
+				wg.Add(1)
+				go func(pr proofgh.PRInfo) {
+					defer wg.Done()
+					sem <- struct{}{}        // acquire
+					defer func() { <-sem }() // release
+
 					pending, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
 					if err != nil {
 						cmd.PrintErrf("Warning: Error checking %s/%s#%d: %v\n", pr.Owner, pr.Repo, pr.Number, err)
-						continue
+						return
 					}
 					if len(pending) == 0 {
 						pendingStore.Remove(pr.Owner, pr.Repo, pr.Number)
+						return
 					}
+
+					mu.Lock()
 					for _, rev := range pending {
-						items = append(items, listOutputItem{
+						results = append(results, pendingResult{
 							Owner:    pr.Owner,
 							Repo:     pr.Repo,
 							Number:   pr.Number,
@@ -112,9 +142,21 @@ func init() {
 							Body:     rev.Body,
 						})
 					}
-				}
-				if items == nil {
-					items = []listOutputItem{}
+					mu.Unlock()
+				}(pr)
+			}
+			wg.Wait()
+
+			if output == "json" {
+				items := make([]listOutputItem, 0, len(results))
+				for _, r := range results {
+					items = append(items, listOutputItem{
+						Owner:    r.Owner,
+						Repo:     r.Repo,
+						Number:   r.Number,
+						ReviewID: r.ReviewID,
+						Body:     r.Body,
+					})
 				}
 				out, err := json.MarshalIndent(items, "", "  ")
 				if err != nil {
@@ -124,31 +166,14 @@ func init() {
 				return nil
 			}
 
-			found := false
-			for _, pr := range prs {
-				pending, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
-				if err != nil {
-					cmd.PrintErrf("Warning: Error checking %s/%s#%d: %v\n", pr.Owner, pr.Repo, pr.Number, err)
-					continue
+			if len(results) > 0 {
+				cmd.Println("Pending reviews (verified):")
+				for _, r := range results {
+					cmd.Printf("  • %s/%s#%d (review ID: %d)\n", r.Owner, r.Repo, r.Number, r.ReviewID)
+					cmd.Printf("    %s\n", truncate(r.Body, 80))
+					cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", r.Owner, r.Repo, r.Number)
 				}
-				if len(pending) == 0 {
-					// Clean up stale store entry
-					pendingStore.Remove(pr.Owner, pr.Repo, pr.Number)
-				}
-				if len(pending) > 0 {
-					if !found {
-						cmd.Println("Pending reviews:")
-						found = true
-					}
-					for _, rev := range pending {
-						cmd.Printf("  • %s/%s#%d (review ID: %d)\n", pr.Owner, pr.Repo, pr.Number, rev.ID)
-						cmd.Printf("    %s\n", truncate(rev.Body, 80))
-						cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", pr.Owner, pr.Repo, pr.Number)
-					}
-				}
-			}
-
-			if !found {
+			} else if len(stored) == 0 {
 				cmd.Println("No pending reviews.")
 			}
 
