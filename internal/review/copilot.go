@@ -62,23 +62,14 @@ func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResu
 
 	prompt := buildReviewPrompt(pr)
 
-	var response string
-	done := make(chan struct{})
-
-	session.On(func(event copilot.SessionEvent) {
-		switch d := event.Data.(type) {
-		case *copilot.AssistantMessageData:
-			response = d.Content
-		case *copilot.SessionIdleData:
-			close(done)
-		}
-	})
-
-	if _, err := session.Send(ctx, copilot.MessageOptions{Prompt: prompt}); err != nil {
-		return nil, fmt.Errorf("sending review request: %w", err)
+	event, err := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: prompt})
+	if err != nil {
+		return nil, fmt.Errorf("copilot review request: %w", err)
 	}
 
-	<-done
+	if event == nil || event.Data.Content == nil {
+		return nil, fmt.Errorf("copilot returned empty response")
+	}
 
-	return parseReviewJSON(response)
+	return parseReviewJSON(*event.Data.Content)
 }
