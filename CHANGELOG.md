@@ -25,6 +25,11 @@ All notable changes to Proof are documented here.
 - **`proof show` command** — terminal preview of pending review with summary and inline comments before submitting
 - **`--output json` flag** — machine-readable JSON output on `proof list` and `proof show` for scripting
 - **E2E smoke test** — full workflow integration test (search → fetch → review → create) with httptest mocks
+- **Single-PR mode** — `proof poll owner/repo#123` reviews a specific PR directly, bypassing search
+- **Watch mode** — `proof poll --every 5m` polls repeatedly at a configurable interval (Ctrl+C to stop)
+- **`proof version` command** — prints version, commit hash, and build date (set via ldflags)
+- **Rate limit awareness** — checks GitHub API limits before polling; warns at low remaining, waits at zero
+- **Improved `proof config init`** — detects GitHub username via `gh`, generates commented YAML with helpful defaults and next-steps
 
 ### Fixed
 - `proof poll` no longer creates duplicate pending reviews when run multiple times
