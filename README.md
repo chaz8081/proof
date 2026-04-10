@@ -2,8 +2,9 @@
 
 > Let it rise before you bake it in.
 
-AI-assisted PR review with human-in-the-loop. Proof pre-reviews GitHub PRs using AI,
-creates pending reviews for you to curate in GitHub's UI, then lets you submit when ready.
+AI-assisted PR review with human-in-the-loop. Proof pre-reviews GitHub PRs using AI
+(via GitHub Copilot SDK), creates pending reviews for you to curate in GitHub's UI,
+then lets you submit when ready.
 
 ## Install
 
