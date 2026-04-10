@@ -9,6 +9,19 @@ import (
 	copilot "github.com/github/copilot-sdk/go"
 )
 
+func init() {
+	NewReviewer = func(ctx context.Context) (Reviewer, func(), error) {
+		r, err := NewCopilotReviewer()
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := r.Start(ctx); err != nil {
+			return nil, nil, err
+		}
+		return r, func() { r.Stop() }, nil
+	}
+}
+
 // CopilotReviewer implements Reviewer using the GitHub Copilot SDK.
 type CopilotReviewer struct {
 	client *copilot.Client
