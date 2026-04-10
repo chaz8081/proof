@@ -359,6 +359,15 @@ func (c *Client) ListPendingReviews(ctx context.Context, owner, repo string, num
 	return pending, nil
 }
 
+// GetReviewComments returns the comments on a specific review.
+func (c *Client) GetReviewComments(ctx context.Context, owner, repo string, number int, reviewID int64) ([]*gh.PullRequestComment, error) {
+	comments, _, err := c.gh.PullRequests.ListReviewComments(ctx, owner, repo, number, reviewID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("listing review comments: %w", err)
+	}
+	return comments, nil
+}
+
 // parseRepoURL extracts owner/repo from a GitHub API repository URL.
 // e.g., "https://api.github.com/repos/owner/repo" -> "owner", "repo"
 func parseRepoURL(url string) (string, string) {

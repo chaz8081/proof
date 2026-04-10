@@ -557,6 +557,29 @@ func TestFilterValidComments_AllValid(t *testing.T) {
 	}
 }
 
+func TestGetReviewComments(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews/42/comments", func(w http.ResponseWriter, r *http.Request) {
+		comments := []*gh.PullRequestComment{
+			{
+				Path: gh.Ptr("main.go"),
+				Line: gh.Ptr(10),
+				Body: gh.Ptr("[issue] Missing error check"),
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(comments)
+	})
+	client := testClient(t, mux)
+	comments, err := client.GetReviewComments(context.Background(), "owner", "repo", 1, 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(comments) != 1 {
+		t.Fatalf("expected 1 comment, got %d", len(comments))
+	}
+}
+
 func TestFilterValidComments_NoneValid(t *testing.T) {
 	validLines := map[string]map[int]bool{}
 	comments := []review.InlineComment{
