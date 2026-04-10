@@ -167,7 +167,7 @@ func TestCreatePendingReview(t *testing.T) {
 		},
 	}
 
-	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result)
+	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -440,6 +440,186 @@ func TestFindReviewRequests_WithTeams_Empty(t *testing.T) {
 	// No teams configured — only one query (personal) should be sent.
 	if callCount != 1 {
 		t.Errorf("expected 1 search query with no teams, got %d", callCount)
+	}
+}
+
+func TestParseDiffLines(t *testing.T) {
+	diff := `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,4 +1,5 @@
+ package main
+
++import "fmt"
++
+ func main() {
+-	println("hello")
++	fmt.Println("hello")
+ }
+diff --git a/util.go b/util.go
+--- a/util.go
++++ b/util.go
+@@ -10,3 +10,4 @@
+ func helper() {
+ 	return
++	// new comment
+ }
+`
+
+	validLines := parseDiffLines(diff)
+
+	// main.go hunk @@ -1,4 +1,5 @@ starting at new-file line 1:
+	//   line 1: context "package main"
+	//   line 2: added "import \"fmt\""
+	//   line 3: added blank
+	//   line 4: context "func main() {"
+	//   line 5: added "fmt.Println(...)"
+	//   line 6: context "}"
+	mainLines, ok := validLines["main.go"]
+	if !ok {
+		t.Fatal("expected main.go in valid lines")
+	}
+	for _, ln := range []int{1, 2, 3, 4, 5, 6} {
+		if !mainLines[ln] {
+			t.Errorf("expected main.go line %d to be valid", ln)
+		}
+	}
+	if mainLines[7] {
+		t.Error("line 7 should not be valid in main.go (outside hunk)")
+	}
+
+	// util.go: lines 10, 11, 12, 13 should be present
+	utilLines, ok := validLines["util.go"]
+	if !ok {
+		t.Fatal("expected util.go in valid lines")
+	}
+	for _, ln := range []int{10, 11, 12, 13} {
+		if !utilLines[ln] {
+			t.Errorf("expected util.go line %d to be valid", ln)
+		}
+	}
+
+	// A line not in the diff should be absent
+	if mainLines[999] {
+		t.Error("line 999 should not be valid in main.go")
+	}
+}
+
+func TestParseDiffLines_Empty(t *testing.T) {
+	validLines := parseDiffLines("")
+	if len(validLines) != 0 {
+		t.Errorf("expected empty map for empty diff, got %v", validLines)
+	}
+}
+
+func TestFilterValidComments(t *testing.T) {
+	validLines := map[string]map[int]bool{
+		"main.go": {5: true, 10: true, 15: true},
+		"util.go": {3: true},
+	}
+
+	comments := []review.InlineComment{
+		{Path: "main.go", Line: 5, Body: "valid"},
+		{Path: "main.go", Line: 10, Body: "valid"},
+		{Path: "main.go", Line: 99, Body: "out of range"},
+		{Path: "util.go", Line: 3, Body: "valid"},
+		{Path: "util.go", Line: 50, Body: "out of range"},
+		{Path: "other.go", Line: 1, Body: "file not in diff"},
+	}
+
+	valid, dropped := filterValidComments(comments, validLines)
+
+	if len(valid) != 3 {
+		t.Errorf("expected 3 valid comments, got %d", len(valid))
+	}
+	if len(dropped) != 3 {
+		t.Errorf("expected 3 dropped comments, got %d", len(dropped))
+	}
+
+	for _, c := range valid {
+		if c.Body != "valid" {
+			t.Errorf("unexpected comment in valid set: %+v", c)
+		}
+	}
+}
+
+func TestFilterValidComments_AllValid(t *testing.T) {
+	validLines := map[string]map[int]bool{
+		"main.go": {1: true, 2: true},
+	}
+	comments := []review.InlineComment{
+		{Path: "main.go", Line: 1, Body: "a"},
+		{Path: "main.go", Line: 2, Body: "b"},
+	}
+	valid, dropped := filterValidComments(comments, validLines)
+	if len(valid) != 2 || len(dropped) != 0 {
+		t.Errorf("expected 2 valid and 0 dropped, got %d valid and %d dropped", len(valid), len(dropped))
+	}
+}
+
+func TestFilterValidComments_NoneValid(t *testing.T) {
+	validLines := map[string]map[int]bool{}
+	comments := []review.InlineComment{
+		{Path: "main.go", Line: 1, Body: "a"},
+	}
+	valid, dropped := filterValidComments(comments, validLines)
+	if len(valid) != 0 || len(dropped) != 1 {
+		t.Errorf("expected 0 valid and 1 dropped, got %d valid and %d dropped", len(valid), len(dropped))
+	}
+}
+
+func TestCreatePendingReview_DropsInvalidLines(t *testing.T) {
+	mux := http.NewServeMux()
+
+	var capturedBody map[string]any
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&capturedBody)
+		rev := &gh.PullRequestReview{
+			ID:    gh.Ptr(int64(99)),
+			State: gh.Ptr("PENDING"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(rev)
+	})
+
+	client := testClient(t, mux)
+
+	diff := `diff --git a/main.go b/main.go
+--- a/main.go
++++ b/main.go
+@@ -1,3 +1,4 @@
+ package main
++
+ func main() {}
+`
+
+	result := &review.ReviewResult{
+		Summary: "Summary",
+		Verdict: "COMMENT",
+		Comments: []review.InlineComment{
+			{Path: "main.go", Line: 2, Body: "valid line", Severity: "nit"},
+			{Path: "main.go", Line: 999, Body: "invalid line", Severity: "issue"},
+		},
+	}
+
+	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result, diff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reviewID != 99 {
+		t.Errorf("expected review ID 99, got %d", reviewID)
+	}
+
+	// The review body should include a note about dropped comments.
+	body, _ := capturedBody["body"].(string)
+	if !strings.Contains(body, "1 comment(s) were dropped") {
+		t.Errorf("expected drop note in body, got: %q", body)
+	}
+
+	// Only 1 comment should have been sent.
+	rawComments, _ := capturedBody["comments"].([]any)
+	if len(rawComments) != 1 {
+		t.Errorf("expected 1 comment sent to GitHub, got %d", len(rawComments))
 	}
 }
 

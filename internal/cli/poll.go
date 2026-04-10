@@ -116,7 +116,7 @@ func init() {
 					continue
 				}
 
-				reviewID, err := ghClient.CreatePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, result)
+				reviewID, err := ghClient.CreatePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, result, prCtx.Diff)
 				if err != nil {
 					cmd.PrintErrf("  Warning: Error creating review: %v\n", err)
 					continue

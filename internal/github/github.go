@@ -4,6 +4,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chaz8081/proof/internal/review"
@@ -210,11 +211,87 @@ type PendingReviewInfo struct {
 	User string
 }
 
+// parseDiffLines extracts the set of valid new-file line numbers from a unified diff.
+// Returns map[filepath]map[lineNumber]true by parsing @@ hunk headers.
+func parseDiffLines(diff string) map[string]map[int]bool {
+	result := make(map[string]map[int]bool)
+	var currentFile string
+	var currentLine int
+
+	for _, line := range strings.Split(diff, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++ "):
+			// Strip the "b/" prefix that unified diffs add
+			path := strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
+			currentFile = path
+			if _, ok := result[currentFile]; !ok {
+				result[currentFile] = make(map[int]bool)
+			}
+		case strings.HasPrefix(line, "@@ "):
+			// Parse @@ -old,count +new,start[,count] @@
+			// We need the new-file start line number.
+			parts := strings.Fields(line)
+			if len(parts) < 3 {
+				continue
+			}
+			newRange := strings.TrimPrefix(parts[2], "+")
+			startStr := strings.SplitN(newRange, ",", 2)[0]
+			start, err := strconv.Atoi(startStr)
+			if err != nil {
+				continue
+			}
+			currentLine = start
+		case currentFile != "" && len(line) > 0:
+			switch line[0] {
+			case '+':
+				if result[currentFile] != nil {
+					result[currentFile][currentLine] = true
+				}
+				currentLine++
+			case ' ':
+				// Context line — exists in new file
+				if result[currentFile] != nil {
+					result[currentFile][currentLine] = true
+				}
+				currentLine++
+			case '-':
+				// Removed line — not in new file, don't advance currentLine
+			}
+		}
+	}
+	return result
+}
+
+// filterValidComments removes comments with line numbers outside the diff hunks.
+// Returns valid comments and a slice of dropped comments for reporting.
+func filterValidComments(comments []review.InlineComment, validLines map[string]map[int]bool) (valid, dropped []review.InlineComment) {
+	for _, c := range comments {
+		fileLines, ok := validLines[c.Path]
+		if ok && fileLines[c.Line] {
+			valid = append(valid, c)
+		} else {
+			dropped = append(dropped, c)
+		}
+	}
+	return valid, dropped
+}
+
 // CreatePendingReview creates a PENDING review with inline comments.
 // The review is only visible to the authenticated user until submitted.
-func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, number int, result *review.ReviewResult) (int64, error) {
+// diff is the unified diff for the PR; comments with line numbers outside the
+// diff hunks are filtered out and noted in the review body to avoid 422 errors.
+func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, number int, result *review.ReviewResult, diff string) (int64, error) {
+	// Filter out comments whose line numbers fall outside the diff.
+	validLines := parseDiffLines(diff)
+	validComments, droppedComments := filterValidComments(result.Comments, validLines)
+
+	body := result.Summary
+	if len(droppedComments) > 0 {
+		body += fmt.Sprintf("\n\n_Note: %d comment(s) were dropped because their line numbers fall outside the diff._", len(droppedComments))
+	}
+
 	var comments []*gh.DraftReviewComment
-	for _, comment := range result.Comments {
+	for _, comment := range validComments {
 		comments = append(comments, &gh.DraftReviewComment{
 			Path: gh.Ptr(comment.Path),
 			Line: gh.Ptr(comment.Line),
@@ -224,7 +301,7 @@ func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, nu
 	}
 
 	r, _, err := c.gh.PullRequests.CreateReview(ctx, owner, repo, number, &gh.PullRequestReviewRequest{
-		Body:     gh.Ptr(result.Summary),
+		Body:     gh.Ptr(body),
 		Comments: comments,
 		// Event intentionally omitted — creates a PENDING review
 	})
