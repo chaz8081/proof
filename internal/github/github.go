@@ -58,40 +58,40 @@ func WithTeams(teams []string) FindOption {
 	return func(o *FindOptions) { o.Teams = teams }
 }
 
-// FindReviewRequests searches for open PRs where the authenticated user
-// is a requested reviewer, filtered to the given repos.
-func (c *Client) FindReviewRequests(ctx context.Context, repos []string, opts ...FindOption) ([]PRInfo, error) {
-	options := &FindOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
+// prKey uniquely identifies a PR for deduplication.
+type prKey struct {
+	Owner  string
+	Repo   string
+	Number int
+}
 
-	query := "is:open is:pr review-requested:@me"
-	if options.IgnoreDrafts {
-		query += " draft:false"
+// buildRepoFilter constructs the repo/org filter string for a GitHub search query.
+func buildRepoFilter(repos []string) string {
+	if len(repos) == 0 {
+		return ""
 	}
-
-	// Build repo filter
-	if len(repos) > 0 {
-		var repoFilters []string
-		for _, r := range repos {
-			if strings.HasSuffix(r, "/*") {
-				org := strings.TrimSuffix(r, "/*")
-				repoFilters = append(repoFilters, fmt.Sprintf("org:%s", org))
-			} else {
-				repoFilters = append(repoFilters, fmt.Sprintf("repo:%s", r))
-			}
+	var filters []string
+	for _, r := range repos {
+		if strings.HasSuffix(r, "/*") {
+			org := strings.TrimSuffix(r, "/*")
+			filters = append(filters, fmt.Sprintf("org:%s", org))
+		} else {
+			filters = append(filters, fmt.Sprintf("repo:%s", r))
 		}
-		query += " " + strings.Join(repoFilters, " ")
 	}
+	return " " + strings.Join(filters, " ")
+}
 
+// searchPRs executes a GitHub issue search query and returns PRInfo results,
+// applying IgnoreWIP filtering.
+func (c *Client) searchPRs(ctx context.Context, query string, options *FindOptions) ([]PRInfo, error) {
 	result, _, err := c.gh.Search.Issues(ctx, query, &gh.SearchOptions{
 		Sort:        "updated",
 		Order:       "desc",
 		ListOptions: gh.ListOptions{PerPage: 100},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("searching for review requests: %w", err)
+		return nil, err
 	}
 
 	var prs []PRInfo
@@ -105,12 +105,66 @@ func (c *Client) FindReviewRequests(ctx context.Context, repos []string, opts ..
 			Author: issue.GetUser().GetLogin(),
 			Draft:  issue.GetDraft(),
 		}
-
 		if options.IgnoreWIP && strings.Contains(strings.ToLower(pr.Title), "wip") {
 			continue
 		}
-
 		prs = append(prs, pr)
+	}
+	return prs, nil
+}
+
+// FindReviewRequests searches for open PRs where the authenticated user
+// is a requested reviewer, filtered to the given repos.
+// If teams are configured, additional queries are run for each team and results
+// are deduplicated by owner/repo/number.
+func (c *Client) FindReviewRequests(ctx context.Context, repos []string, opts ...FindOption) ([]PRInfo, error) {
+	options := &FindOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	repoFilter := buildRepoFilter(repos)
+
+	// Query for personal review requests
+	query := "is:open is:pr review-requested:@me"
+	if options.IgnoreDrafts {
+		query += " draft:false"
+	}
+	query += repoFilter
+
+	prs, err := c.searchPRs(ctx, query, options)
+	if err != nil {
+		return nil, fmt.Errorf("searching for review requests: %w", err)
+	}
+
+	// Run separate queries per team and deduplicate results.
+	if len(options.Teams) > 0 {
+		// Build a set of already-seen PRs from the personal query.
+		seen := make(map[prKey]struct{}, len(prs))
+		for _, pr := range prs {
+			seen[prKey{pr.Owner, pr.Repo, pr.Number}] = struct{}{}
+		}
+
+		for _, team := range options.Teams {
+			teamQuery := "is:open is:pr team-review-requested:" + team
+			if options.IgnoreDrafts {
+				teamQuery += " draft:false"
+			}
+			teamQuery += repoFilter
+
+			teamPRs, err := c.searchPRs(ctx, teamQuery, options)
+			if err != nil {
+				return nil, fmt.Errorf("searching for team review requests (%s): %w", team, err)
+			}
+
+			for _, pr := range teamPRs {
+				k := prKey{pr.Owner, pr.Repo, pr.Number}
+				if _, exists := seen[k]; !exists {
+					seen[k] = struct{}{}
+					prs = append(prs, pr)
+				}
+			}
+		}
 	}
 
 	return prs, nil

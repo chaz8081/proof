@@ -29,7 +29,9 @@ func init() {
 
 			ghClient := proofgh.NewClient(token)
 
-			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos)
+			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
+				proofgh.WithTeams(cfg.Teams),
+			)
 			if err != nil {
 				return fmt.Errorf("finding review requests: %w", err)
 			}

@@ -35,6 +35,7 @@ func init() {
 			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
 				proofgh.WithIgnoreDrafts(*cfg.Poll.IgnoreDrafts),
 				proofgh.WithIgnoreWIP(cfg.Poll.IgnoreWIP),
+				proofgh.WithTeams(cfg.Teams),
 			)
 			if err != nil {
 				return fmt.Errorf("finding review requests: %w", err)

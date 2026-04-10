@@ -260,6 +260,171 @@ func TestListPendingReviews_NoPending(t *testing.T) {
 	}
 }
 
+func TestFindReviewRequests_WithTeams(t *testing.T) {
+	mux := http.NewServeMux()
+
+	// Track which queries were received.
+	var receivedQueries []string
+
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		receivedQueries = append(receivedQueries, q)
+
+		var issues []*gh.Issue
+
+		switch {
+		case containsStr(q, "review-requested:@me"):
+			// Personal review request — returns PR #1
+			issues = []*gh.Issue{
+				{
+					Number:           gh.Ptr(1),
+					Title:            gh.Ptr("Personal PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/1")},
+					User:             &gh.User{Login: gh.Ptr("alice")},
+					Draft:            gh.Ptr(false),
+				},
+				// PR #2 also shows up in the personal query — will be deduped against team result
+				{
+					Number:           gh.Ptr(2),
+					Title:            gh.Ptr("Shared PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/2")},
+					User:             &gh.User{Login: gh.Ptr("bob")},
+					Draft:            gh.Ptr(false),
+				},
+			}
+		case containsStr(q, "team-review-requested:myorg/myteam"):
+			// Team query — returns PR #2 (duplicate) and PR #3 (new)
+			issues = []*gh.Issue{
+				{
+					Number:           gh.Ptr(2),
+					Title:            gh.Ptr("Shared PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/2")},
+					User:             &gh.User{Login: gh.Ptr("bob")},
+					Draft:            gh.Ptr(false),
+				},
+				{
+					Number:           gh.Ptr(3),
+					Title:            gh.Ptr("Team-only PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/3")},
+					User:             &gh.User{Login: gh.Ptr("carol")},
+					Draft:            gh.Ptr(false),
+				},
+			}
+		}
+
+		result := &gh.IssuesSearchResult{
+			Total:  gh.Ptr(len(issues)),
+			Issues: issues,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	prs, err := client.FindReviewRequests(
+		context.Background(),
+		[]string{"owner/repo"},
+		WithTeams([]string{"myorg/myteam"}),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have exactly 3 unique PRs (not 4 — PR #2 deduplicated).
+	if len(prs) != 3 {
+		t.Fatalf("expected 3 PRs after deduplication, got %d: %+v", len(prs), prs)
+	}
+
+	// Verify both queries were sent.
+	if len(receivedQueries) != 2 {
+		t.Fatalf("expected 2 search queries, got %d: %v", len(receivedQueries), receivedQueries)
+	}
+
+	hasPersonalQuery := false
+	hasTeamQuery := false
+	for _, q := range receivedQueries {
+		if containsStr(q, "review-requested:@me") {
+			hasPersonalQuery = true
+		}
+		if containsStr(q, "team-review-requested:myorg/myteam") {
+			hasTeamQuery = true
+		}
+	}
+	if !hasPersonalQuery {
+		t.Errorf("expected a review-requested:@me query, got: %v", receivedQueries)
+	}
+	if !hasTeamQuery {
+		t.Errorf("expected a team-review-requested:myorg/myteam query, got: %v", receivedQueries)
+	}
+
+	// Verify PR numbers: 1, 2, 3 (order: personal first, then unique team additions).
+	prNums := make(map[int]bool)
+	for _, pr := range prs {
+		prNums[pr.Number] = true
+	}
+	for _, expected := range []int{1, 2, 3} {
+		if !prNums[expected] {
+			t.Errorf("expected PR #%d in results", expected)
+		}
+	}
+}
+
+func TestFindReviewRequests_WithTeams_DraftFilter(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		if !containsStr(q, "draft:false") {
+			t.Errorf("expected draft:false in query %q", q)
+		}
+		result := &gh.IssuesSearchResult{Total: gh.Ptr(0), Issues: []*gh.Issue{}}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	_, err := client.FindReviewRequests(
+		context.Background(),
+		[]string{"owner/repo"},
+		WithIgnoreDrafts(true),
+		WithTeams([]string{"myorg/myteam"}),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFindReviewRequests_WithTeams_Empty(t *testing.T) {
+	mux := http.NewServeMux()
+
+	callCount := 0
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		result := &gh.IssuesSearchResult{Total: gh.Ptr(0), Issues: []*gh.Issue{}}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	_, err := client.FindReviewRequests(
+		context.Background(),
+		[]string{"owner/repo"},
+		WithTeams([]string{}),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// No teams configured — only one query (personal) should be sent.
+	if callCount != 1 {
+		t.Errorf("expected 1 search query with no teams, got %d", callCount)
+	}
+}
+
 func containsStr(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
