@@ -141,6 +141,20 @@ func TestLoadConfig_ReviewInstructions_OmittedByDefault(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_InvalidDefaultVerdict(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte("repos:\n  - owner/repo\nreview:\n  default_verdict: LGTM\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = LoadFromPath(cfgPath)
+	if err == nil {
+		t.Fatal("expected error for invalid default_verdict, got nil")
+	}
+}
+
 func TestLoadConfig_IgnoreDraftsFalse(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

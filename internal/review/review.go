@@ -13,13 +13,14 @@ type Reviewer interface {
 }
 
 type PRContext struct {
-	Owner       string
-	Repo        string
-	Number      int
-	Title       string
-	Description string
-	Diff        string
-	Files       []string
+	Owner        string
+	Repo         string
+	Number       int
+	Title        string
+	Description  string
+	Diff         string
+	Files        []string
+	Instructions string
 }
 
 type ReviewResult struct {

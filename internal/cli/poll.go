@@ -29,6 +29,10 @@ func init() {
 				return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof config init' to create one, then edit it to add your repos.")
 			}
 
+			if len(cfg.Repos) == 0 {
+				return fmt.Errorf("No repos configured. Edit ~/.proof/config.yaml and add repos to watch.\nExample:\n  repos:\n    - owner/repo\n    - myorg/*")
+			}
+
 			token, err := resolveToken()
 			if err != nil {
 				return err
@@ -92,6 +96,7 @@ func init() {
 					continue
 				}
 
+				prCtx.Instructions = cfg.Review.Instructions
 				result, err := reviewer.Review(ctx, *prCtx)
 				if err != nil {
 					cmd.PrintErrf("  Warning: Error during AI review: %v\n", err)

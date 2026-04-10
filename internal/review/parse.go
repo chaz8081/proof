@@ -38,10 +38,7 @@ func buildSystemPrompt(userInstructions string) string {
 	if userInstructions == "" {
 		return systemPrompt
 	}
-	return systemPrompt + "
-
-Additional review instructions from configuration:
-" + userInstructions
+	return systemPrompt + "\n\nAdditional review instructions from configuration:\n" + userInstructions
 }
 
 // buildReviewPrompt constructs the prompt sent to the model for a PR review.
