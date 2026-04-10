@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/chaz8081/proof/internal/review"
@@ -71,7 +72,7 @@ func TestFindReviewRequests_SkipsDrafts(t *testing.T) {
 	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
 		// Verify the query includes draft:false
-		if !containsStr(q, "draft:false") {
+		if !strings.Contains(q, "draft:false") {
 			t.Errorf("expected query to filter drafts, got: %s", q)
 		}
 		result := &gh.IssuesSearchResult{Total: gh.Ptr(0), Issues: []*gh.Issue{}}
@@ -273,7 +274,7 @@ func TestFindReviewRequests_WithTeams(t *testing.T) {
 		var issues []*gh.Issue
 
 		switch {
-		case containsStr(q, "review-requested:@me"):
+		case strings.Contains(q, "review-requested:@me"):
 			// Personal review request — returns PR #1
 			issues = []*gh.Issue{
 				{
@@ -294,7 +295,7 @@ func TestFindReviewRequests_WithTeams(t *testing.T) {
 					Draft:            gh.Ptr(false),
 				},
 			}
-		case containsStr(q, "team-review-requested:myorg/myteam"):
+		case strings.Contains(q, "team-review-requested:myorg/myteam"):
 			// Team query — returns PR #2 (duplicate) and PR #3 (new)
 			issues = []*gh.Issue{
 				{
@@ -347,10 +348,10 @@ func TestFindReviewRequests_WithTeams(t *testing.T) {
 	hasPersonalQuery := false
 	hasTeamQuery := false
 	for _, q := range receivedQueries {
-		if containsStr(q, "review-requested:@me") {
+		if strings.Contains(q, "review-requested:@me") {
 			hasPersonalQuery = true
 		}
-		if containsStr(q, "team-review-requested:myorg/myteam") {
+		if strings.Contains(q, "team-review-requested:myorg/myteam") {
 			hasTeamQuery = true
 		}
 	}
@@ -378,7 +379,7 @@ func TestFindReviewRequests_WithTeams_DraftFilter(t *testing.T) {
 
 	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
-		if !containsStr(q, "draft:false") {
+		if !strings.Contains(q, "draft:false") {
 			t.Errorf("expected draft:false in query %q", q)
 		}
 		result := &gh.IssuesSearchResult{Total: gh.Ptr(0), Issues: []*gh.Issue{}}
@@ -425,11 +426,3 @@ func TestFindReviewRequests_WithTeams_Empty(t *testing.T) {
 	}
 }
 
-func containsStr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}

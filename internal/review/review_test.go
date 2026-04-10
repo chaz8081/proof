@@ -3,6 +3,7 @@ package review
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -95,22 +96,10 @@ func TestInlineComment_FormattedBody(t *testing.T) {
 			if body == "" {
 				t.Fatal("expected non-empty body")
 			}
-			if !contains(body, tt.contains) {
+			if !strings.Contains(body, tt.contains) {
 				t.Errorf("expected body to contain %q, got %q", tt.contains, body)
 			}
 		})
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
