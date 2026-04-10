@@ -3,7 +3,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -27,12 +26,12 @@ func init() {
 
 			cfg, err := config.Load()
 			if err != nil {
-				return fmt.Errorf("loading config: %w\nRun 'proof config init' to create one", err)
+				return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof config init' to create one, then edit it to add your repos.")
 			}
 
-			token := os.Getenv("GITHUB_TOKEN")
-			if token == "" {
-				return fmt.Errorf("GITHUB_TOKEN not set — export your GitHub token or use 'gh auth token'")
+			token, err := resolveToken()
+			if err != nil {
+				return err
 			}
 
 			ghClient := proofgh.NewClient(token)

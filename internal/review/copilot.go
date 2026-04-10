@@ -53,7 +53,7 @@ func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResu
 		Model: "gpt-4.1",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
-			Content: systemPrompt,
+			Content: buildSystemPrompt(pr.Instructions),
 		},
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})

@@ -13,7 +13,7 @@ var NewReviewer func(ctx context.Context) (Reviewer, func(), error)
 func init() {
 	if NewReviewer == nil {
 		NewReviewer = func(ctx context.Context) (Reviewer, func(), error) {
-			return nil, nil, fmt.Errorf("no reviewer available — build with -tags=copilot to enable Copilot SDK")
+			return nil, nil, fmt.Errorf("AI reviewer not available. Build with Copilot SDK support:\n  go build -tags=copilot -o proof ./cmd/proof")
 		}
 	}
 }

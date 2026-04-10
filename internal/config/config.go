@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -23,6 +24,7 @@ type PollConfig struct {
 
 type ReviewConfig struct {
 	DefaultVerdict string `yaml:"default_verdict,omitempty"`
+	Instructions   string `yaml:"instructions,omitempty"`
 }
 
 func LoadFromPath(path string) (*Config, error) {
@@ -36,7 +38,9 @@ func LoadFromPath(path string) (*Config, error) {
 		return nil, err
 	}
 
-	applyDefaults(cfg)
+	if err := applyDefaults(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -53,17 +57,26 @@ func DefaultConfig() *Config {
 	cfg := &Config{
 		Repos: []string{"owner/repo"},
 	}
-	applyDefaults(cfg)
+	_ = applyDefaults(cfg) // defaults are always valid
 	return cfg
 }
 
 func boolPtr(v bool) *bool { return &v }
 
-func applyDefaults(cfg *Config) {
+var validVerdicts = map[string]bool{
+	"APPROVE":         true,
+	"REQUEST_CHANGES": true,
+	"COMMENT":         true,
+}
+
+func applyDefaults(cfg *Config) error {
 	if cfg.Review.DefaultVerdict == "" {
 		cfg.Review.DefaultVerdict = "COMMENT"
+	} else if !validVerdicts[cfg.Review.DefaultVerdict] {
+		return fmt.Errorf("invalid default_verdict %q — must be APPROVE, REQUEST_CHANGES, or COMMENT", cfg.Review.DefaultVerdict)
 	}
 	if cfg.Poll.IgnoreDrafts == nil {
 		cfg.Poll.IgnoreDrafts = boolPtr(true)
 	}
+	return nil
 }

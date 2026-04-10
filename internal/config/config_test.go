@@ -101,6 +101,46 @@ func TestConfigDir(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_ReviewInstructions(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte(`
+repos:
+  - owner/repo
+review:
+  default_verdict: COMMENT
+  instructions: "Focus on security and error handling."
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Review.Instructions != "Focus on security and error handling." {
+		t.Errorf("expected instructions to be loaded, got %q", cfg.Review.Instructions)
+	}
+}
+
+func TestLoadConfig_ReviewInstructions_OmittedByDefault(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte("repos:\n  - owner/repo\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Review.Instructions != "" {
+		t.Errorf("expected empty instructions by default, got %q", cfg.Review.Instructions)
+	}
+}
+
 func TestLoadConfig_IgnoreDraftsFalse(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

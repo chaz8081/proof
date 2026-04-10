@@ -3,7 +3,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,6 +12,19 @@ import (
 	proofstore "github.com/chaz8081/proof/internal/store"
 	"github.com/spf13/cobra"
 )
+
+var validVerdicts = map[string]bool{
+	"APPROVE":         true,
+	"REQUEST_CHANGES": true,
+	"COMMENT":         true,
+}
+
+func validateVerdict(verdict string) error {
+	if !validVerdicts[verdict] {
+		return fmt.Errorf("invalid verdict %q — must be APPROVE, REQUEST_CHANGES, or COMMENT", verdict)
+	}
+	return nil
+}
 
 // resolveVerdict validates flag mutual exclusivity and returns the resolved verdict string.
 // An empty string is returned when none of the shorthand flags are set, leaving
@@ -66,9 +78,9 @@ func init() {
 				return err
 			}
 
-			token := os.Getenv("GITHUB_TOKEN")
-			if token == "" {
-				return fmt.Errorf("GITHUB_TOKEN not set")
+			token, err := resolveToken()
+			if err != nil {
+				return err
 			}
 
 			ghClient := proofgh.NewClient(token)
@@ -78,7 +90,7 @@ func init() {
 				return fmt.Errorf("listing pending reviews: %w", err)
 			}
 			if len(pending) == 0 {
-				return fmt.Errorf("no pending review found on %s/%s#%d", owner, repo, number)
+				return fmt.Errorf("No pending review found on %s/%s#%d\nRun 'proof poll' first to generate an AI review, or create one manually on GitHub.", owner, repo, number)
 			}
 
 			reviewID := pending[0].ID
@@ -91,6 +103,10 @@ func init() {
 				} else {
 					event = cfg.Review.DefaultVerdict
 				}
+			}
+
+			if err := validateVerdict(event); err != nil {
+				return err
 			}
 
 			if err := ghClient.SubmitReview(ctx, owner, repo, number, reviewID, event); err != nil {

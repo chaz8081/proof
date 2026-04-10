@@ -33,6 +33,17 @@ Rules:
 - If the PR looks good, use verdict APPROVE with an empty or minimal comments array
 - Focus on bugs, security issues, and logic errors over style`
 
+// buildSystemPrompt composes the base system prompt with optional user-configured instructions.
+func buildSystemPrompt(userInstructions string) string {
+	if userInstructions == "" {
+		return systemPrompt
+	}
+	return systemPrompt + "
+
+Additional review instructions from configuration:
+" + userInstructions
+}
+
 // buildReviewPrompt constructs the prompt sent to the model for a PR review.
 func buildReviewPrompt(pr PRContext) string {
 	var b strings.Builder
