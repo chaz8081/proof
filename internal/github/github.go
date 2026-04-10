@@ -24,6 +24,12 @@ func NewClient(token string) *Client {
 	return &Client{gh: gh.NewClient(tc)}
 }
 
+// NewClientFromGH creates a Client from an existing go-github client.
+// Used in tests to inject httptest servers.
+func NewClientFromGH(client *gh.Client) *Client {
+	return &Client{gh: client}
+}
+
 // PRInfo is a lightweight representation of a PR needing review.
 type PRInfo struct {
 	Owner  string

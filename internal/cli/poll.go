@@ -16,6 +16,7 @@ import (
 func init() {
 	var dryRun bool
 	var model string
+	var reReview bool
 
 	pollCmd := &cobra.Command{
 		Use:   "poll",
@@ -99,8 +100,16 @@ func init() {
 					continue
 				}
 				if len(existing) > 0 {
-					cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
-					continue
+					if !reReview {
+						cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
+						continue
+					}
+					// Delete existing pending review before creating new one
+					if err := ghClient.DeletePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, existing[0].ID); err != nil {
+						cmd.PrintErrf("  Warning: Failed to delete existing review: %v\n", err)
+						continue
+					}
+					cmd.Printf("  Deleted existing pending review (ID: %d), re-reviewing...\n", existing[0].ID)
 				}
 
 				reviewModel := cfg.Review.Model
@@ -143,5 +152,6 @@ func init() {
 
 	pollCmd.Flags().BoolVar(&dryRun, "dry-run", false, "List PRs without generating reviews")
 	pollCmd.Flags().StringVar(&model, "model", "", "AI model to use (overrides config)")
+	pollCmd.Flags().BoolVar(&reReview, "re-review", false, "Force re-review of PRs with existing pending reviews")
 	rootCmd.AddCommand(pollCmd)
 }
