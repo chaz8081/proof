@@ -143,6 +143,70 @@ func (c *Client) GetPRContext(ctx context.Context, owner, repo string, number in
 	}, nil
 }
 
+// PendingReviewInfo represents a pending review on a PR.
+type PendingReviewInfo struct {
+	ID   int64
+	Body string
+	User string
+}
+
+// CreatePendingReview creates a PENDING review with inline comments.
+// The review is only visible to the authenticated user until submitted.
+func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, number int, result *review.ReviewResult) (int64, error) {
+	var comments []*gh.DraftReviewComment
+	for _, comment := range result.Comments {
+		comments = append(comments, &gh.DraftReviewComment{
+			Path: gh.Ptr(comment.Path),
+			Line: gh.Ptr(comment.Line),
+			Side: gh.Ptr("RIGHT"),
+			Body: gh.Ptr(comment.FormattedBody()),
+		})
+	}
+
+	r, _, err := c.gh.PullRequests.CreateReview(ctx, owner, repo, number, &gh.PullRequestReviewRequest{
+		Body:     gh.Ptr(result.Summary),
+		Comments: comments,
+		// Event intentionally omitted — creates a PENDING review
+	})
+	if err != nil {
+		return 0, fmt.Errorf("creating pending review: %w", err)
+	}
+
+	return r.GetID(), nil
+}
+
+// SubmitReview submits a pending review with the given verdict.
+// Valid events: APPROVE, REQUEST_CHANGES, COMMENT
+func (c *Client) SubmitReview(ctx context.Context, owner, repo string, number int, reviewID int64, event string) error {
+	_, _, err := c.gh.PullRequests.SubmitReview(ctx, owner, repo, number, reviewID, &gh.PullRequestReviewRequest{
+		Event: gh.Ptr(event),
+	})
+	if err != nil {
+		return fmt.Errorf("submitting review: %w", err)
+	}
+	return nil
+}
+
+// ListPendingReviews returns all PENDING reviews on a PR.
+func (c *Client) ListPendingReviews(ctx context.Context, owner, repo string, number int) ([]PendingReviewInfo, error) {
+	reviews, _, err := c.gh.PullRequests.ListReviews(ctx, owner, repo, number, nil)
+	if err != nil {
+		return nil, fmt.Errorf("listing reviews: %w", err)
+	}
+
+	var pending []PendingReviewInfo
+	for _, r := range reviews {
+		if r.GetState() == "PENDING" {
+			pending = append(pending, PendingReviewInfo{
+				ID:   r.GetID(),
+				Body: r.GetBody(),
+				User: r.GetUser().GetLogin(),
+			})
+		}
+	}
+	return pending, nil
+}
+
 // parseRepoURL extracts owner/repo from a GitHub API repository URL.
 // e.g., "https://api.github.com/repos/owner/repo" -> "owner", "repo"
 func parseRepoURL(url string) (string, string) {

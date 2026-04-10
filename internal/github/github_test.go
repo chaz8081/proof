@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/chaz8081/proof/internal/review"
 	gh "github.com/google/go-github/v68/github"
 )
 
@@ -130,6 +131,106 @@ func TestGetPRContext(t *testing.T) {
 	}
 	if len(prCtx.Files) != 2 {
 		t.Errorf("expected 2 files, got %d", len(prCtx.Files))
+	}
+}
+
+func TestCreatePendingReview(t *testing.T) {
+	mux := http.NewServeMux()
+
+	var capturedBody map[string]any
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		json.NewDecoder(r.Body).Decode(&capturedBody)
+
+		rev := &gh.PullRequestReview{
+			ID:    gh.Ptr(int64(42)),
+			State: gh.Ptr("PENDING"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(rev)
+	})
+
+	client := testClient(t, mux)
+	result := &review.ReviewResult{
+		Summary: "Looks good with minor issues",
+		Verdict: "COMMENT",
+		Comments: []review.InlineComment{
+			{
+				Path:     "main.go",
+				Line:     10,
+				Body:     "Consider error handling",
+				Severity: "issue",
+			},
+		},
+	}
+
+	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reviewID != 42 {
+		t.Errorf("expected review ID 42, got %d", reviewID)
+	}
+
+	// Verify no event was sent (pending review)
+	if event, ok := capturedBody["event"]; ok && event != "" {
+		t.Errorf("expected no event for pending review, got %q", event)
+	}
+}
+
+func TestSubmitReview(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews/42/events", func(w http.ResponseWriter, r *http.Request) {
+		rev := &gh.PullRequestReview{
+			ID:    gh.Ptr(int64(42)),
+			State: gh.Ptr("APPROVED"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(rev)
+	})
+
+	client := testClient(t, mux)
+	err := client.SubmitReview(context.Background(), "owner", "repo", 1, 42, "APPROVE")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestListPendingReviews(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, r *http.Request) {
+		reviews := []*gh.PullRequestReview{
+			{
+				ID:    gh.Ptr(int64(42)),
+				State: gh.Ptr("PENDING"),
+				Body:  gh.Ptr("AI review summary"),
+				User:  &gh.User{Login: gh.Ptr("chaz8081")},
+			},
+			{
+				ID:    gh.Ptr(int64(43)),
+				State: gh.Ptr("APPROVED"),
+				Body:  gh.Ptr("LGTM"),
+				User:  &gh.User{Login: gh.Ptr("alice")},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(reviews)
+	})
+
+	client := testClient(t, mux)
+	reviews, err := client.ListPendingReviews(context.Background(), "owner", "repo", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(reviews) != 1 {
+		t.Fatalf("expected 1 pending review, got %d", len(reviews))
+	}
+	if reviews[0].ID != 42 {
+		t.Errorf("expected review ID 42, got %d", reviews[0].ID)
 	}
 }
 
