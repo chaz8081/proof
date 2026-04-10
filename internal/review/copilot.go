@@ -5,6 +5,7 @@ package review
 import (
 	"context"
 	"fmt"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -49,6 +50,7 @@ func (r *CopilotReviewer) Stop() {
 // Review sends the PR context to Copilot for analysis and returns a structured review.
 func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResult, error) {
 	session, err := r.client.CreateSession(ctx, &copilot.SessionConfig{
+		Model: "gpt-4.1",
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
 			Content: systemPrompt,
@@ -62,7 +64,11 @@ func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResu
 
 	prompt := buildReviewPrompt(pr)
 
-	event, err := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: prompt})
+	// Give the model up to 3 minutes for large diffs
+	sendCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+
+	event, err := session.SendAndWait(sendCtx, copilot.MessageOptions{Prompt: prompt})
 	if err != nil {
 		return nil, fmt.Errorf("copilot review request: %w", err)
 	}
