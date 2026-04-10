@@ -21,6 +21,10 @@ All notable changes to Proof are documented here.
 - **`proof poll --re-review`** — force fresh AI review on PRs that already have a pending review (deletes existing, creates new)
 - **`proof config validate`** — validates config file and reports issues (empty repos, invalid verdicts, negative values)
 - **Integration test harness** — shared `testutil` package with `NewTestClient`, fixture loading, and mock helpers for cross-package testing
+- **Repo instruction discovery** — automatically fetches `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md` (with glob matching), and `AGENTS.md` from target repos and injects into the AI review prompt
+- **`proof show` command** — terminal preview of pending review with summary and inline comments before submitting
+- **`--output json` flag** — machine-readable JSON output on `proof list` and `proof show` for scripting
+- **E2E smoke test** — full workflow integration test (search → fetch → review → create) with httptest mocks
 
 ### Fixed
 - `proof poll` no longer creates duplicate pending reviews when run multiple times
