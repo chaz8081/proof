@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -11,7 +12,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// listOutputItem is the JSON representation of a single pending review for list output.
+type listOutputItem struct {
+	Owner    string `json:"owner"`
+	Repo     string `json:"repo"`
+	Number   int    `json:"number"`
+	ReviewID int64  `json:"review_id"`
+	Body     string `json:"body"`
+}
+
 func init() {
+	var output string
+
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show your pending reviews across watched repos",
@@ -65,6 +77,38 @@ func init() {
 				}
 			}
 
+			if output == "json" {
+				var items []listOutputItem
+				for _, pr := range prs {
+					pending, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
+					if err != nil {
+						cmd.PrintErrf("Warning: Error checking %s/%s#%d: %v\n", pr.Owner, pr.Repo, pr.Number, err)
+						continue
+					}
+					if len(pending) == 0 {
+						pendingStore.Remove(pr.Owner, pr.Repo, pr.Number)
+					}
+					for _, rev := range pending {
+						items = append(items, listOutputItem{
+							Owner:    pr.Owner,
+							Repo:     pr.Repo,
+							Number:   pr.Number,
+							ReviewID: rev.ID,
+							Body:     rev.Body,
+						})
+					}
+				}
+				if items == nil {
+					items = []listOutputItem{}
+				}
+				out, err := json.MarshalIndent(items, "", "  ")
+				if err != nil {
+					return fmt.Errorf("marshaling JSON: %w", err)
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), string(out))
+				return nil
+			}
+
 			found := false
 			for _, pr := range prs {
 				pending, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
@@ -97,6 +141,7 @@ func init() {
 		},
 	}
 
+	listCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
 	rootCmd.AddCommand(listCmd)
 }
 
