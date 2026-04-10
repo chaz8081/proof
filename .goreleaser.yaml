@@ -1,0 +1,42 @@
+version: 2
+
+project_name: proof
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: proof
+    main: ./cmd/proof
+    binary: proof
+    env:
+      - CGO_ENABLED=0
+    tags:
+      - copilot
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/chaz8081/proof/internal/cli.Version={{.Version}}
+      - -X github.com/chaz8081/proof/internal/cli.Commit={{.ShortCommit}}
+      - -X github.com/chaz8081/proof/internal/cli.BuildDate={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
