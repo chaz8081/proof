@@ -37,6 +37,7 @@ type PRInfo struct {
 type FindOptions struct {
 	IgnoreDrafts bool
 	IgnoreWIP    bool
+	Teams        []string
 }
 
 // FindOption is a functional option for FindReviewRequests.
@@ -50,6 +51,11 @@ func WithIgnoreDrafts(v bool) FindOption {
 // WithIgnoreWIP filters out PRs with "wip" in the title.
 func WithIgnoreWIP(v bool) FindOption {
 	return func(o *FindOptions) { o.IgnoreWIP = v }
+}
+
+// WithTeams adds team-review-requested queries for the given teams.
+func WithTeams(teams []string) FindOption {
+	return func(o *FindOptions) { o.Teams = teams }
 }
 
 // FindReviewRequests searches for open PRs where the authenticated user
