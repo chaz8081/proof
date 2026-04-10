@@ -1,7 +1,83 @@
 // internal/cli/submit_test.go
 package cli
 
-import "testing"
+import (
+	"testing"
+)
+
+func TestResolveVerdict(t *testing.T) {
+	tests := []struct {
+		name           string
+		approve        bool
+		requestChanges bool
+		verdict        string
+		wantVerdict    string
+		wantErr        bool
+	}{
+		{
+			name:        "--approve sets verdict to APPROVE",
+			approve:     true,
+			wantVerdict: "APPROVE",
+		},
+		{
+			name:           "--request-changes sets verdict to REQUEST_CHANGES",
+			requestChanges: true,
+			wantVerdict:    "REQUEST_CHANGES",
+		},
+		{
+			name:        "--verdict passes through unchanged",
+			verdict:     "COMMENT",
+			wantVerdict: "COMMENT",
+		},
+		{
+			name:        "no flags returns empty string",
+			wantVerdict: "",
+		},
+		{
+			name:           "--approve and --request-changes together returns error",
+			approve:        true,
+			requestChanges: true,
+			wantErr:        true,
+		},
+		{
+			name:        "--approve and --verdict together returns error",
+			approve:     true,
+			verdict:     "COMMENT",
+			wantErr:     true,
+		},
+		{
+			name:           "--request-changes and --verdict together returns error",
+			requestChanges: true,
+			verdict:        "COMMENT",
+			wantErr:        true,
+		},
+		{
+			name:           "all three set returns error",
+			approve:        true,
+			requestChanges: true,
+			verdict:        "COMMENT",
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveVerdict(tt.approve, tt.requestChanges, tt.verdict)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.wantVerdict {
+				t.Errorf("got %q, want %q", got, tt.wantVerdict)
+			}
+		})
+	}
+}
 
 func TestParsePRRef(t *testing.T) {
 	tests := []struct {

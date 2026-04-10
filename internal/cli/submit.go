@@ -12,8 +12,37 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// resolveVerdict validates flag mutual exclusivity and returns the resolved verdict string.
+// An empty string is returned when none of the shorthand flags are set, leaving
+// the caller to fall back to config or a default.
+func resolveVerdict(approve, requestChanges bool, verdict string) (string, error) {
+	set := 0
+	if approve {
+		set++
+	}
+	if requestChanges {
+		set++
+	}
+	if verdict != "" {
+		set++
+	}
+	if set > 1 {
+		return "", fmt.Errorf("only one of --verdict, --approve, or --request-changes can be specified")
+	}
+
+	if approve {
+		return "APPROVE", nil
+	}
+	if requestChanges {
+		return "REQUEST_CHANGES", nil
+	}
+	return verdict, nil
+}
+
 func init() {
 	var verdict string
+	var approve bool
+	var requestChanges bool
 
 	submitCmd := &cobra.Command{
 		Use:   "submit <owner/repo#number>",
@@ -22,6 +51,11 @@ func init() {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+
+			resolved, err := resolveVerdict(approve, requestChanges, verdict)
+			if err != nil {
+				return err
+			}
 
 			owner, repo, number, err := parsePRRef(args[0])
 			if err != nil {
@@ -45,7 +79,7 @@ func init() {
 
 			reviewID := pending[0].ID
 
-			event := strings.ToUpper(verdict)
+			event := strings.ToUpper(resolved)
 			if event == "" {
 				cfg, err := config.Load()
 				if err != nil {
@@ -66,6 +100,8 @@ func init() {
 	}
 
 	submitCmd.Flags().StringVar(&verdict, "verdict", "", "Review verdict: APPROVE, REQUEST_CHANGES, or COMMENT")
+	submitCmd.Flags().BoolVar(&approve, "approve", false, "Submit as APPROVE")
+	submitCmd.Flags().BoolVar(&requestChanges, "request-changes", false, "Submit as REQUEST_CHANGES")
 	rootCmd.AddCommand(submitCmd)
 }
 
