@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -13,8 +14,8 @@ type RateLimitInfo struct {
 }
 
 // CheckRateLimit queries the GitHub API rate limit for the authenticated user.
-func (c *Client) CheckRateLimit() (*RateLimitInfo, error) {
-	rate, _, err := c.gh.RateLimit.Get(nil)
+func (c *Client) CheckRateLimit(ctx context.Context) (*RateLimitInfo, error) {
+	rate, _, err := c.gh.RateLimit.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -27,8 +28,8 @@ func (c *Client) CheckRateLimit() (*RateLimitInfo, error) {
 }
 
 // WaitForRateLimit blocks until the rate limit resets if remaining is below threshold.
-func (c *Client) WaitForRateLimit(threshold int) error {
-	info, err := c.CheckRateLimit()
+func (c *Client) WaitForRateLimit(ctx context.Context, threshold int) error {
+	info, err := c.CheckRateLimit(ctx)
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/chaz8081/proof/internal/config"
 	proofgh "github.com/chaz8081/proof/internal/github"
@@ -45,6 +46,20 @@ func init() {
 			}
 
 			ghClient := proofgh.NewClient(token)
+
+			// Check rate limit before starting
+			rateInfo, err := ghClient.CheckRateLimit(ctx)
+			if err == nil && rateInfo.Remaining < 10 {
+				cmd.Printf("Warning: GitHub API rate limit low (%d/%d remaining, resets %s)\n",
+					rateInfo.Remaining, rateInfo.Limit, rateInfo.Reset.Format("15:04:05"))
+				if rateInfo.Remaining == 0 {
+					waitTime := time.Until(rateInfo.Reset)
+					if waitTime > 0 {
+						cmd.Printf("Rate limited. Waiting %s for reset...\n", waitTime.Round(time.Second))
+						time.Sleep(waitTime)
+					}
+				}
+			}
 
 			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 

@@ -22,10 +22,100 @@ func init() {
 	var every string
 
 	pollCmd := &cobra.Command{
-		Use:   "poll",
+		Use:   "poll [owner/repo#number]",
 		Short: "Check for PRs needing review and generate AI draft reviews",
+		Long:  `Poll for PRs requesting your review and generate AI reviews. Optionally specify a single PR to review directly.`,
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+
+			// Single-PR mode: review just one PR directly, no search needed
+			if len(args) > 0 {
+				owner, repo, number, err := parsePRRef(args[0])
+				if err != nil {
+					return err
+				}
+
+				token, err := resolveToken()
+				if err != nil {
+					return err
+				}
+				ghClient := proofgh.NewClient(token)
+
+				// Load config for instructions/model (but don't need repos list)
+				cfg, _ := config.Load() // OK if no config for single-PR mode
+
+				cmd.Printf("Reviewing %s/%s#%d...\n", owner, repo, number)
+
+				// Check for existing pending review
+				existing, err := ghClient.ListPendingReviews(ctx, owner, repo, number)
+				if err == nil && len(existing) > 0 && !reReview {
+					cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
+					return nil
+				}
+				if reReview && len(existing) > 0 {
+					ghClient.DeletePendingReview(ctx, owner, repo, number, existing[0].ID)
+					cmd.Printf("  Deleted existing pending review (ID: %d), re-reviewing...\n", existing[0].ID)
+				}
+
+				// Fetch context
+				prCtx, err := ghClient.GetPRContext(ctx, owner, repo, number)
+				if err != nil {
+					return fmt.Errorf("fetching PR context: %w", err)
+				}
+
+				// Apply config if loaded
+				if cfg != nil {
+					prCtx.Instructions = cfg.Review.Instructions
+					prCtx.Model = cfg.Review.Model
+				}
+				if model != "" {
+					prCtx.Model = model
+				}
+				if prCtx.Model == "" {
+					prCtx.Model = "gpt-4.1"
+				}
+
+				if dryRun {
+					cmd.Printf("  %s — %s (by @%s)\n  (dry run — skipping AI review)\n", prCtx.Title, prCtx.Description, "")
+					return nil
+				}
+
+				// Fetch repo instructions
+				repoInstructions, err := ghClient.FetchRepoInstructions(ctx, owner, repo, prCtx.Files)
+				if err == nil && repoInstructions != nil {
+					prCtx.RepoInstructions = *repoInstructions
+				}
+
+				// Review
+				reviewer, cleanup, err := review.NewReviewer(ctx)
+				if err != nil {
+					return fmt.Errorf("initializing reviewer: %w", err)
+				}
+				defer cleanup()
+
+				result, err := reviewer.Review(ctx, *prCtx)
+				if err != nil {
+					return fmt.Errorf("AI review failed: %w", err)
+				}
+
+				reviewID, err := ghClient.CreatePendingReview(ctx, owner, repo, number, result, prCtx.Diff)
+				if err != nil {
+					return fmt.Errorf("creating review: %w", err)
+				}
+
+				pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+				pendingStore.Add(proofstore.PendingRecord{
+					Owner: owner, Repo: repo, Number: number, ReviewID: reviewID, Created: time.Now(),
+				})
+
+				cmd.Printf("  Done — pending review created (ID: %d) — %d comments, verdict: %s\n",
+					reviewID, len(result.Comments), result.Verdict)
+				cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", owner, repo, number)
+				return nil
+			}
+
+			// Multi-PR mode: search for PRs requesting review
 
 			// Parse --every flag and set up watch mode
 			var duration time.Duration
@@ -64,6 +154,20 @@ func init() {
 				}
 
 				ghClient := proofgh.NewClient(token)
+
+				// Check rate limit before starting
+				rateInfo, err := ghClient.CheckRateLimit(ctx)
+				if err == nil && rateInfo.Remaining < 10 {
+					cmd.Printf("Warning: GitHub API rate limit low (%d/%d remaining, resets %s)\n",
+						rateInfo.Remaining, rateInfo.Limit, rateInfo.Reset.Format("15:04:05"))
+					if rateInfo.Remaining == 0 {
+						waitTime := time.Until(rateInfo.Reset)
+						if waitTime > 0 {
+							cmd.Printf("Rate limited. Waiting %s for reset...\n", waitTime.Round(time.Second))
+							time.Sleep(waitTime)
+						}
+					}
+				}
 
 				prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
 					proofgh.WithIgnoreDrafts(*cfg.Poll.IgnoreDrafts),
