@@ -399,6 +399,23 @@ func TestFindReviewRequests_WithTeams_DraftFilter(t *testing.T) {
 	}
 }
 
+func TestDeletePendingReview(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews/42", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		review := &gh.PullRequestReview{ID: gh.Ptr(int64(42)), State: gh.Ptr("PENDING")}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(review)
+	})
+	client := testClient(t, mux)
+	err := client.DeletePendingReview(context.Background(), "owner", "repo", 1, 42)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestFindReviewRequests_WithTeams_Empty(t *testing.T) {
 	mux := http.NewServeMux()
 

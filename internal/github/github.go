@@ -247,6 +247,15 @@ func (c *Client) SubmitReview(ctx context.Context, owner, repo string, number in
 	return nil
 }
 
+// DeletePendingReview deletes a pending review from a PR.
+func (c *Client) DeletePendingReview(ctx context.Context, owner, repo string, number int, reviewID int64) error {
+	_, _, err := c.gh.PullRequests.DeletePendingReview(ctx, owner, repo, number, reviewID)
+	if err != nil {
+		return fmt.Errorf("deleting pending review: %w", err)
+	}
+	return nil
+}
+
 // ListPendingReviews returns all PENDING reviews on a PR.
 func (c *Client) ListPendingReviews(ctx context.Context, owner, repo string, number int) ([]PendingReviewInfo, error) {
 	reviews, _, err := c.gh.PullRequests.ListReviews(ctx, owner, repo, number, nil)
