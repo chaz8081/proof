@@ -43,7 +43,7 @@ review:
 	if len(cfg.Teams) != 1 || cfg.Teams[0] != "myorg/my-team" {
 		t.Errorf("unexpected teams: %v", cfg.Teams)
 	}
-	if !cfg.Poll.IgnoreDrafts {
+	if cfg.Poll.IgnoreDrafts == nil || !*cfg.Poll.IgnoreDrafts {
 		t.Error("expected ignore_drafts to be true")
 	}
 	if !cfg.Poll.IgnoreWIP {
@@ -76,7 +76,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Poll.IgnoreDrafts != true {
+	if cfg.Poll.IgnoreDrafts == nil || !*cfg.Poll.IgnoreDrafts {
 		t.Error("expected ignore_drafts to default to true")
 	}
 	if cfg.Poll.MaxFiles != 0 {
@@ -98,5 +98,25 @@ func TestConfigDir(t *testing.T) {
 	dir := ConfigDir()
 	if dir == "" {
 		t.Error("expected non-empty config dir")
+	}
+}
+
+func TestLoadConfig_IgnoreDraftsFalse(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte("repos:\n  - owner/repo\npoll:\n  ignore_drafts: false\n"), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Poll.IgnoreDrafts == nil {
+		t.Fatal("expected ignore_drafts to be set, got nil")
+	}
+	if *cfg.Poll.IgnoreDrafts {
+		t.Error("expected ignore_drafts to remain false when explicitly set to false")
 	}
 }

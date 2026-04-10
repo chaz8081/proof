@@ -234,6 +234,32 @@ func TestListPendingReviews(t *testing.T) {
 	}
 }
 
+func TestListPendingReviews_NoPending(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, r *http.Request) {
+		reviews := []*gh.PullRequestReview{
+			{
+				ID:    gh.Ptr(int64(43)),
+				State: gh.Ptr("APPROVED"),
+				Body:  gh.Ptr("LGTM"),
+				User:  &gh.User{Login: gh.Ptr("alice")},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(reviews)
+	})
+
+	client := testClient(t, mux)
+	reviews, err := client.ListPendingReviews(context.Background(), "owner", "repo", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(reviews) != 0 {
+		t.Fatalf("expected 0 pending reviews, got %d", len(reviews))
+	}
+}
+
 func containsStr(s, substr string) bool {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

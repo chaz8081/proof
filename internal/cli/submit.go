@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chaz8081/proof/internal/config"
 	proofgh "github.com/chaz8081/proof/internal/github"
 	"github.com/spf13/cobra"
 )
@@ -46,7 +47,12 @@ func init() {
 
 			event := strings.ToUpper(verdict)
 			if event == "" {
-				event = "COMMENT"
+				cfg, err := config.Load()
+				if err != nil {
+					event = "COMMENT" // fallback if no config
+				} else {
+					event = cfg.Review.DefaultVerdict
+				}
 			}
 
 			if err := ghClient.SubmitReview(ctx, owner, repo, number, reviewID, event); err != nil {
@@ -59,7 +65,7 @@ func init() {
 		},
 	}
 
-	submitCmd.Flags().StringVar(&verdict, "verdict", "COMMENT", "Review verdict: APPROVE, REQUEST_CHANGES, or COMMENT")
+	submitCmd.Flags().StringVar(&verdict, "verdict", "", "Review verdict: APPROVE, REQUEST_CHANGES, or COMMENT")
 	rootCmd.AddCommand(submitCmd)
 }
 

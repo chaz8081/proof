@@ -33,7 +33,7 @@ func init() {
 			ghClient := proofgh.NewClient(token)
 
 			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
-				proofgh.WithIgnoreDrafts(cfg.Poll.IgnoreDrafts),
+				proofgh.WithIgnoreDrafts(*cfg.Poll.IgnoreDrafts),
 				proofgh.WithIgnoreWIP(cfg.Poll.IgnoreWIP),
 			)
 			if err != nil {
@@ -73,6 +73,17 @@ func init() {
 
 				if cfg.Poll.MaxFiles > 0 && len(prCtx.Files) > cfg.Poll.MaxFiles {
 					cmd.Printf("  Skipping — %d files exceeds max_files (%d)\n", len(prCtx.Files), cfg.Poll.MaxFiles)
+					continue
+				}
+
+				// Before creating, check if we already have a pending review
+				existing, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
+				if err != nil {
+					cmd.PrintErrf("  Warning: Error checking existing reviews: %v\n", err)
+					continue
+				}
+				if len(existing) > 0 {
+					cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
 					continue
 				}
 

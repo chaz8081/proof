@@ -16,9 +16,9 @@ type Config struct {
 }
 
 type PollConfig struct {
-	IgnoreDrafts bool `yaml:"ignore_drafts,omitempty"`
-	IgnoreWIP    bool `yaml:"ignore_wip,omitempty"`
-	MaxFiles     int  `yaml:"max_files,omitempty"`
+	IgnoreDrafts *bool `yaml:"ignore_drafts,omitempty"`
+	IgnoreWIP    bool  `yaml:"ignore_wip,omitempty"`
+	MaxFiles     int   `yaml:"max_files,omitempty"`
 }
 
 type ReviewConfig struct {
@@ -57,11 +57,13 @@ func DefaultConfig() *Config {
 	return cfg
 }
 
+func boolPtr(v bool) *bool { return &v }
+
 func applyDefaults(cfg *Config) {
 	if cfg.Review.DefaultVerdict == "" {
 		cfg.Review.DefaultVerdict = "COMMENT"
 	}
-	if !cfg.Poll.IgnoreDrafts {
-		cfg.Poll.IgnoreDrafts = true
+	if cfg.Poll.IgnoreDrafts == nil {
+		cfg.Poll.IgnoreDrafts = boolPtr(true)
 	}
 }
