@@ -30,6 +30,8 @@ All notable changes to Proof are documented here.
 - **`proof version` command** — prints version, commit hash, and build date (set via ldflags)
 - **Rate limit awareness** — checks GitHub API limits before polling; warns at low remaining, waits at zero
 - **Improved `proof config init`** — detects GitHub username via `gh`, generates commented YAML with helpful defaults and next-steps
+- **Concurrent `proof list`** — goroutine-per-PR with semaphore (max 5 concurrent), local store as fast path
+- **Release automation** — Goreleaser config + GitHub Actions workflow for tagged releases (linux/darwin, amd64/arm64)
 
 ### Fixed
 - `proof poll` no longer creates duplicate pending reviews when run multiple times
