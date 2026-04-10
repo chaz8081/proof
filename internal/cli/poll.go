@@ -86,6 +86,12 @@ func init() {
 					continue
 				}
 
+				if cfg.Poll.MaxDiffBytes > 0 && len(prCtx.Diff) > cfg.Poll.MaxDiffBytes {
+					cmd.Printf("  Skipping — diff size %d bytes exceeds max_diff_bytes (%d)\n",
+						len(prCtx.Diff), cfg.Poll.MaxDiffBytes)
+					continue
+				}
+
 				// Before creating, check if we already have a pending review
 				existing, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
 				if err != nil {
