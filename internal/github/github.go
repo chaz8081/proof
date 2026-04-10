@@ -79,8 +79,9 @@ func (c *Client) FindReviewRequests(ctx context.Context, repos []string, opts ..
 	}
 
 	result, _, err := c.gh.Search.Issues(ctx, query, &gh.SearchOptions{
-		Sort:  "updated",
-		Order: "desc",
+		Sort:        "updated",
+		Order:       "desc",
+		ListOptions: gh.ListOptions{PerPage: 100},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("searching for review requests: %w", err)
