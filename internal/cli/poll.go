@@ -14,6 +14,7 @@ type pollOptions struct {
 	IncludeOwn bool
 	Model      string
 	Every      string
+	Output     string
 	Config     *config.Config
 }
 
@@ -24,6 +25,7 @@ func init() {
 	var every string
 	var includeOwn bool
 	var batch bool
+	var output string
 
 	pollCmd := &cobra.Command{
 		Use:   "poll [owner/repo#number]",
@@ -58,6 +60,7 @@ func init() {
 				IncludeOwn: includeOwn,
 				Model:      model,
 				Every:      every,
+				Output:     output,
 			}
 			return pollRouter(cmd, args, opts)
 		},
@@ -69,7 +72,29 @@ func init() {
 	pollCmd.Flags().StringVar(&every, "every", "", "Poll repeatedly at this interval (e.g., 5m, 1h)")
 	pollCmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include your own PRs in the review scan")
 	pollCmd.Flags().BoolVar(&batch, "batch", false, "Review all PRs without interactive selection")
+	pollCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
 	rootCmd.AddCommand(pollCmd)
+}
+
+// dryRunResultItem is the JSON output shape for --dry-run mode.
+type dryRunResultItem struct {
+	Owner  string `json:"owner"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	Status string `json:"status"`
+}
+
+// pollResultItem is the JSON output shape for a completed AI review.
+type pollResultItem struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	Number       int    `json:"number"`
+	ReviewID     int64  `json:"review_id"`
+	Verdict      string `json:"verdict"`
+	CommentCount int    `json:"comment_count"`
+	Summary      string `json:"summary"`
 }
 
 // pollRouter dispatches to the single-PR or multi-PR flow based on args.

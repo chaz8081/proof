@@ -44,7 +44,7 @@ func init() {
 
 			cfg, err := config.Load()
 			if err != nil {
-				return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof config init' to create one, then edit it to add your repos.")
+				return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof setup' to create one, then edit it to add your repos.")
 			}
 
 			if len(cfg.Repos) == 0 {

@@ -43,7 +43,7 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 
 		cfg, err := config.Load()
 		if err != nil {
-			return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof config init' to create one, then edit it to add your repos.")
+			return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof setup' to create one, then edit it to add your repos.")
 		}
 
 		if len(cfg.Repos) == 0 {
@@ -254,7 +254,14 @@ func reviewPR(
 	prCtx.Instructions = instructions
 	prCtx.Model = reviewModel
 
+	var spin *spinner
+	if opts.Output != "json" {
+		spin = newSpinner(cmd.OutOrStdout(), "AI reviewing...")
+	}
 	result, err := reviewer.Review(ctx, *prCtx)
+	if spin != nil {
+		spin.stop()
+	}
 	if err != nil {
 		return fmt.Errorf("error during AI review: %v", err)
 	}

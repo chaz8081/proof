@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -68,7 +69,23 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	}
 
 	if opts.DryRun {
-		cmd.Printf("  %s — %s (by @%s)\n  (dry run — skipping AI review)\n", prCtx.Title, prCtx.Description, "")
+		if opts.Output == "json" {
+			item := []dryRunResultItem{{
+				Owner:  owner,
+				Repo:   repo,
+				Number: number,
+				Title:  prCtx.Title,
+				Author: "",
+				Status: "NEW",
+			}}
+			data, err := json.Marshal(item)
+			if err != nil {
+				return fmt.Errorf("marshaling JSON: %w", err)
+			}
+			cmd.Println(string(data))
+		} else {
+			cmd.Printf("  %s — %s (by @%s)\n  (dry run — skipping AI review)\n", prCtx.Title, prCtx.Description, "")
+		}
 		return nil
 	}
 
@@ -86,7 +103,14 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	}
 	defer cleanup()
 
+	var spin *spinner
+	if opts.Output != "json" {
+		spin = newSpinner(cmd.OutOrStdout(), "AI reviewing...")
+	}
 	result, err := reviewer.Review(ctx, *prCtx)
+	if spin != nil {
+		spin.stop()
+	}
 	if err != nil {
 		return fmt.Errorf("AI review failed: %w", err)
 	}
@@ -101,8 +125,25 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		Owner: owner, Repo: repo, Number: number, ReviewID: reviewID, Created: time.Now(),
 	})
 
-	cmd.Printf("  Done — pending review created (ID: %d) — %d comments, verdict: %s\n",
-		reviewID, len(result.Comments), result.Verdict)
-	cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", owner, repo, number)
+	if opts.Output == "json" {
+		items := []pollResultItem{{
+			Owner:        owner,
+			Repo:         repo,
+			Number:       number,
+			ReviewID:     reviewID,
+			Verdict:      string(result.Verdict),
+			CommentCount: len(result.Comments),
+			Summary:      result.Summary,
+		}}
+		data, err := json.Marshal(items)
+		if err != nil {
+			return fmt.Errorf("marshaling JSON: %w", err)
+		}
+		cmd.Println(string(data))
+	} else {
+		cmd.Printf("  Done — pending review created (ID: %d) — %d comments, verdict: %s\n",
+			reviewID, len(result.Comments), result.Verdict)
+		cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", owner, repo, number)
+	}
 	return nil
 }
