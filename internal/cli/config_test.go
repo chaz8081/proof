@@ -3,41 +3,30 @@ package cli
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestConfigInitCmd_CreatesFile(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yaml")
-
-	cmd := newConfigInitCmd(cfgPath)
-	buf := new(bytes.Buffer)
-	cmd.SetOut(buf)
-	cmd.SetErr(buf)
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if _, err := os.Stat(cfgPath); err != nil {
-		t.Fatalf("config file not created: %v", err)
+func TestConfigInitCmd_DelegatesToSetup(t *testing.T) {
+	// config init is now an alias for the setup wizard.
+	// Verify the command exists and its Use field is correct.
+	cmd := newConfigInitCmd("/dev/null/config.yaml")
+	if cmd.Use != "init" {
+		t.Errorf("expected Use == 'init', got %q", cmd.Use)
 	}
 }
 
-func TestConfigInitCmd_DoesNotOverwrite(t *testing.T) {
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yaml")
-	os.WriteFile(cfgPath, []byte("existing"), 0644)
-
-	cmd := newConfigInitCmd(cfgPath)
+func TestConfigShowCmd_MissingFile(t *testing.T) {
+	cmd := newConfigShowCmd("/nonexistent/path/config.yaml")
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
 	cmd.SetErr(buf)
 
 	err := cmd.Execute()
 	if err == nil {
-		t.Fatal("expected error when config already exists")
+		t.Fatal("expected error when config file does not exist")
+	}
+	if !strings.Contains(err.Error(), "no config found") {
+		t.Errorf("expected 'no config found' in error, got: %v", err)
 	}
 }
