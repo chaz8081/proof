@@ -83,7 +83,7 @@ func init() {
 			}
 
 			// Phase 2: Verify against GitHub + find any not in store (concurrent)
-			prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
+			prs, err := ghClient.FindReviewRequests(ctx, cfg.RepoNames(),
 				proofgh.WithTeams(cfg.Teams),
 			)
 			if err != nil {

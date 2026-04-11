@@ -34,11 +34,11 @@ review:
 	if len(cfg.Repos) != 2 {
 		t.Errorf("expected 2 repos, got %d", len(cfg.Repos))
 	}
-	if cfg.Repos[0] != "owner/repo-a" {
-		t.Errorf("expected 'owner/repo-a', got %q", cfg.Repos[0])
+	if cfg.Repos[0].Name != "owner/repo-a" {
+		t.Errorf("expected 'owner/repo-a', got %q", cfg.Repos[0].Name)
 	}
-	if cfg.Repos[1] != "myorg/*" {
-		t.Errorf("expected 'myorg/*', got %q", cfg.Repos[1])
+	if cfg.Repos[1].Name != "myorg/*" {
+		t.Errorf("expected 'myorg/*', got %q", cfg.Repos[1].Name)
 	}
 	if len(cfg.Teams) != 1 || cfg.Teams[0] != "myorg/my-team" {
 		t.Errorf("unexpected teams: %v", cfg.Teams)
@@ -89,7 +89,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 
 func TestDefaultConfig_GeneratesValidYAML(t *testing.T) {
 	cfg := DefaultConfig()
-	if len(cfg.Repos) != 1 || cfg.Repos[0] != "owner/repo" {
+	if len(cfg.Repos) != 1 || cfg.Repos[0].Name != "owner/repo" {
 		t.Errorf("unexpected default repos: %v", cfg.Repos)
 	}
 }
@@ -255,7 +255,7 @@ func TestLoadConfig_MaxDiffBytes_DefaultsToZero(t *testing.T) {
 
 func TestValidate_NoIssues(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{"owner/repo", "myorg/*"},
+		Repos: []RepoEntry{{Name: "owner/repo"}, {Name: "myorg/*"}},
 		Review: ReviewConfig{
 			DefaultVerdict: "COMMENT",
 		},
@@ -272,7 +272,7 @@ func TestValidate_NoIssues(t *testing.T) {
 
 func TestValidate_EmptyRepos(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{},
+		Repos: []RepoEntry{},
 	}
 	issues := cfg.Validate()
 	if len(issues) == 0 {
@@ -291,7 +291,7 @@ func TestValidate_EmptyRepos(t *testing.T) {
 
 func TestValidate_InvalidRepoFormat(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{"validorg/repo", "noslash"},
+		Repos: []RepoEntry{{Name: "validorg/repo"}, {Name: "noslash"}},
 	}
 	issues := cfg.Validate()
 	if len(issues) == 0 {
@@ -310,7 +310,7 @@ func TestValidate_InvalidRepoFormat(t *testing.T) {
 
 func TestValidate_InvalidDefaultVerdict(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{"owner/repo"},
+		Repos: []RepoEntry{{Name: "owner/repo"}},
 		Review: ReviewConfig{
 			DefaultVerdict: "LGTM",
 		},
@@ -332,7 +332,7 @@ func TestValidate_InvalidDefaultVerdict(t *testing.T) {
 
 func TestValidate_NegativeMaxFiles(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{"owner/repo"},
+		Repos: []RepoEntry{{Name: "owner/repo"}},
 		Poll:  PollConfig{MaxFiles: -1},
 	}
 	issues := cfg.Validate()
@@ -352,7 +352,7 @@ func TestValidate_NegativeMaxFiles(t *testing.T) {
 
 func TestValidate_NegativeMaxDiffBytes(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{"owner/repo"},
+		Repos: []RepoEntry{{Name: "owner/repo"}},
 		Poll:  PollConfig{MaxDiffBytes: -100},
 	}
 	issues := cfg.Validate()
@@ -372,7 +372,7 @@ func TestValidate_NegativeMaxDiffBytes(t *testing.T) {
 
 func TestValidate_MultipleIssues(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{},
+		Repos: []RepoEntry{},
 		Poll:  PollConfig{MaxFiles: -1, MaxDiffBytes: -1},
 	}
 	issues := cfg.Validate()
@@ -383,7 +383,7 @@ func TestValidate_MultipleIssues(t *testing.T) {
 
 func TestValidate_EmptyVerdictIsSkipped(t *testing.T) {
 	cfg := &Config{
-		Repos: []string{"owner/repo"},
+		Repos: []RepoEntry{{Name: "owner/repo"}},
 		Review: ReviewConfig{
 			DefaultVerdict: "",
 		},
@@ -413,5 +413,108 @@ review:
 	}
 	if cfg.Review.Model != "o4-mini" {
 		t.Errorf("expected model 'o4-mini' to be preserved, got %q", cfg.Review.Model)
+	}
+}
+
+// --- RepoEntry / mixed YAML format tests ---
+
+func TestLoadConfig_MixedRepoFormats(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	err := os.WriteFile(cfgPath, []byte(`
+repos:
+  - owner/repo-a
+  - name: owner/repo-b
+    instructions: |
+      Focus on security in this repo.
+      Flag any hardcoded credentials.
+  - myorg/*
+`), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadFromPath(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(cfg.Repos) != 3 {
+		t.Fatalf("expected 3 repos, got %d", len(cfg.Repos))
+	}
+	if cfg.Repos[0].Name != "owner/repo-a" {
+		t.Errorf("expected Repos[0].Name = 'owner/repo-a', got %q", cfg.Repos[0].Name)
+	}
+	if cfg.Repos[0].Instructions != "" {
+		t.Errorf("expected Repos[0].Instructions empty, got %q", cfg.Repos[0].Instructions)
+	}
+	if cfg.Repos[1].Name != "owner/repo-b" {
+		t.Errorf("expected Repos[1].Name = 'owner/repo-b', got %q", cfg.Repos[1].Name)
+	}
+	if cfg.Repos[1].Instructions == "" {
+		t.Error("expected Repos[1].Instructions to be non-empty")
+	}
+	if cfg.Repos[2].Name != "myorg/*" {
+		t.Errorf("expected Repos[2].Name = 'myorg/*', got %q", cfg.Repos[2].Name)
+	}
+}
+
+func TestRepoNames(t *testing.T) {
+	cfg := &Config{
+		Repos: []RepoEntry{
+			{Name: "owner/repo-a"},
+			{Name: "owner/repo-b", Instructions: "Check security."},
+			{Name: "myorg/*"},
+		},
+	}
+	names := cfg.RepoNames()
+	if len(names) != 3 {
+		t.Fatalf("expected 3 names, got %d", len(names))
+	}
+	if names[0] != "owner/repo-a" {
+		t.Errorf("expected names[0] = 'owner/repo-a', got %q", names[0])
+	}
+	if names[1] != "owner/repo-b" {
+		t.Errorf("expected names[1] = 'owner/repo-b', got %q", names[1])
+	}
+	if names[2] != "myorg/*" {
+		t.Errorf("expected names[2] = 'myorg/*', got %q", names[2])
+	}
+}
+
+func TestRepoInstructions_Found(t *testing.T) {
+	cfg := &Config{
+		Repos: []RepoEntry{
+			{Name: "owner/repo-a"},
+			{Name: "owner/repo-b", Instructions: "Focus on security.\n"},
+		},
+	}
+	got := cfg.RepoInstructions("owner", "repo-b")
+	if got != "Focus on security.\n" {
+		t.Errorf("expected per-repo instructions, got %q", got)
+	}
+}
+
+func TestRepoInstructions_NotFound(t *testing.T) {
+	cfg := &Config{
+		Repos: []RepoEntry{
+			{Name: "owner/repo-a"},
+		},
+	}
+	got := cfg.RepoInstructions("owner", "repo-z")
+	if got != "" {
+		t.Errorf("expected empty string for unknown repo, got %q", got)
+	}
+}
+
+func TestRepoInstructions_NoInstructions(t *testing.T) {
+	cfg := &Config{
+		Repos: []RepoEntry{
+			{Name: "owner/repo-a"},
+		},
+	}
+	got := cfg.RepoInstructions("owner", "repo-a")
+	if got != "" {
+		t.Errorf("expected empty string for repo with no instructions, got %q", got)
 	}
 }
