@@ -3,6 +3,7 @@ package review
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -61,9 +62,90 @@ func buildReviewPrompt(pr PRContext) string {
 	if pr.Description != "" {
 		fmt.Fprintf(&b, "**Description**: %s\n", pr.Description)
 	}
-	fmt.Fprintf(&b, "**Files changed**: %s\n\n", strings.Join(pr.Files, ", "))
-	fmt.Fprintf(&b, "## Diff\n\n```diff\n%s\n```\n", pr.Diff)
+
+	// Group files by directory and type for context
+	fmt.Fprintf(&b, "**Files changed** (%d):\n", len(pr.Files))
+	groups := groupFilesByDir(pr.Files)
+	for dir, files := range groups {
+		fmt.Fprintf(&b, "  %s/: %s\n", dir, strings.Join(files, ", "))
+	}
+
+	// Add cross-file hints
+	hints := detectCrossFileHints(pr.Files)
+	if len(hints) > 0 {
+		b.WriteString("\n**Cross-file relationships to check:**\n")
+		for _, hint := range hints {
+			fmt.Fprintf(&b, "- %s\n", hint)
+		}
+	}
+
+	fmt.Fprintf(&b, "\n## Diff\n\n```diff\n%s\n```\n", pr.Diff)
 	return b.String()
+}
+
+// groupFilesByDir groups files by their directory.
+func groupFilesByDir(files []string) map[string][]string {
+	groups := make(map[string][]string)
+	for _, f := range files {
+		dir := filepath.Dir(f)
+		if dir == "." {
+			dir = "(root)"
+		}
+		groups[dir] = append(groups[dir], filepath.Base(f))
+	}
+	return groups
+}
+
+// detectCrossFileHints identifies common cross-file patterns that reviewers should check.
+func detectCrossFileHints(files []string) []string {
+	var hints []string
+
+	fileSet := make(map[string]bool)
+	for _, f := range files {
+		fileSet[f] = true
+	}
+
+	for _, f := range files {
+		base := filepath.Base(f)
+		dir := filepath.Dir(f)
+		ext := filepath.Ext(f)
+		nameWithoutExt := strings.TrimSuffix(base, ext)
+
+		// Test file changed without implementation (or vice versa)
+		if strings.HasSuffix(nameWithoutExt, "_test") {
+			implFile := filepath.Join(dir, strings.TrimSuffix(nameWithoutExt, "_test")+ext)
+			if !fileSet[implFile] {
+				hints = append(hints, fmt.Sprintf("Test file %s changed but implementation %s was not modified — verify tests still match the implementation", f, implFile))
+			}
+		} else {
+			testFile := filepath.Join(dir, nameWithoutExt+"_test"+ext)
+			if fileSet[testFile] {
+				hints = append(hints, fmt.Sprintf("Both %s and its test %s changed — verify tests cover the new behavior", f, testFile))
+			}
+		}
+
+		// Interface/types files changed
+		if base == "types.go" || base == "interfaces.go" || base == "models.go" {
+			hints = append(hints, fmt.Sprintf("Type definitions in %s changed — verify all implementations and callers are updated", f))
+		}
+
+		// Config changes
+		if base == "config.go" || base == "config.yaml" || base == "config.json" {
+			hints = append(hints, fmt.Sprintf("Configuration in %s changed — verify defaults, validation, and documentation are updated", f))
+		}
+	}
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var unique []string
+	for _, h := range hints {
+		if !seen[h] {
+			seen[h] = true
+			unique = append(unique, h)
+		}
+	}
+
+	return unique
 }
 
 // parseReviewJSON extracts and parses a ReviewResult from the model's response.

@@ -110,3 +110,157 @@ func TestBuildSystemPrompt_OrderingIsCorrect(t *testing.T) {
 			repoWideIdx, pathSpecIdx, agentIdx, userIdx)
 	}
 }
+
+func TestGroupFilesByDir(t *testing.T) {
+	files := []string{
+		"internal/review/parse.go",
+		"internal/review/parse_test.go",
+		"main.go",
+		"cmd/root.go",
+	}
+
+	groups := groupFilesByDir(files)
+
+	// root-level files should land in "(root)"
+	rootFiles, ok := groups["(root)"]
+	if !ok {
+		t.Fatal("expected '(root)' group for root-level files")
+	}
+	if len(rootFiles) != 1 || rootFiles[0] != "main.go" {
+		t.Errorf("expected '(root)' to contain [main.go], got %v", rootFiles)
+	}
+
+	// internal/review should contain both parse files
+	reviewFiles, ok := groups["internal/review"]
+	if !ok {
+		t.Fatal("expected 'internal/review' group")
+	}
+	if len(reviewFiles) != 2 {
+		t.Errorf("expected 2 files in 'internal/review', got %d: %v", len(reviewFiles), reviewFiles)
+	}
+
+	// cmd should contain root.go
+	cmdFiles, ok := groups["cmd"]
+	if !ok {
+		t.Fatal("expected 'cmd' group")
+	}
+	if len(cmdFiles) != 1 || cmdFiles[0] != "root.go" {
+		t.Errorf("expected 'cmd' to contain [root.go], got %v", cmdFiles)
+	}
+}
+
+func TestGroupFilesByDir_Empty(t *testing.T) {
+	groups := groupFilesByDir(nil)
+	if len(groups) != 0 {
+		t.Errorf("expected empty groups for nil input, got %v", groups)
+	}
+}
+
+func TestDetectCrossFileHints_ImplAndTestBothChanged(t *testing.T) {
+	files := []string{
+		"internal/review/parse.go",
+		"internal/review/parse_test.go",
+	}
+
+	hints := detectCrossFileHints(files)
+
+	// Expect a hint that both impl and test changed
+	found := false
+	for _, h := range hints {
+		if strings.Contains(h, "parse.go") && strings.Contains(h, "parse_test.go") && strings.Contains(h, "verify tests cover") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected impl+test hint for parse.go/parse_test.go, got: %v", hints)
+	}
+}
+
+func TestDetectCrossFileHints_TestOnlyChanged(t *testing.T) {
+	files := []string{
+		"internal/review/parse_test.go",
+	}
+
+	hints := detectCrossFileHints(files)
+
+	// Expect a hint that impl was not modified
+	found := false
+	for _, h := range hints {
+		if strings.Contains(h, "parse_test.go") && strings.Contains(h, "verify tests still match") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected test-only hint for parse_test.go, got: %v", hints)
+	}
+}
+
+func TestDetectCrossFileHints_TypesGo(t *testing.T) {
+	files := []string{
+		"internal/core/types.go",
+	}
+
+	hints := detectCrossFileHints(files)
+
+	found := false
+	for _, h := range hints {
+		if strings.Contains(h, "types.go") && strings.Contains(h, "verify all implementations") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected types.go hint, got: %v", hints)
+	}
+}
+
+func TestDetectCrossFileHints_ConfigChanges(t *testing.T) {
+	for _, configFile := range []string{"config.go", "config.yaml", "config.json"} {
+		t.Run(configFile, func(t *testing.T) {
+			hints := detectCrossFileHints([]string{"internal/" + configFile})
+
+			found := false
+			for _, h := range hints {
+				if strings.Contains(h, configFile) && strings.Contains(h, "verify defaults") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("expected config hint for %s, got: %v", configFile, hints)
+			}
+		})
+	}
+}
+
+func TestDetectCrossFileHints_NoMatches(t *testing.T) {
+	files := []string{
+		"internal/review/review.go",
+		"cmd/root.go",
+	}
+
+	hints := detectCrossFileHints(files)
+
+	if len(hints) != 0 {
+		t.Errorf("expected no hints for unrelated files, got: %v", hints)
+	}
+}
+
+func TestDetectCrossFileHints_Deduplicated(t *testing.T) {
+	// types.go appearing once should only produce one hint
+	files := []string{"pkg/types.go"}
+
+	hints := detectCrossFileHints(files)
+
+	count := 0
+	for _, h := range hints {
+		if strings.Contains(h, "types.go") {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 types.go hint (no duplicates), got %d: %v", count, hints)
+	}
+}
