@@ -18,88 +18,88 @@ var setupCmd = &cobra.Command{
 	Short: "Guided first-run configuration wizard",
 	Long:  "Interactive wizard that creates ~/.proof/config.yaml with your preferences.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-			cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
+		cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
 
-			// Check if config already exists
-			if _, err := os.Stat(cfgPath); err == nil {
-				fmt.Print("Config already exists at " + cfgPath + ". Overwrite? (y/N): ")
-				if !promptYesNo(os.Stdin, false) {
-					cmd.Println("Setup cancelled.")
-					return nil
-				}
+		// Check if config already exists
+		if _, err := os.Stat(cfgPath); err == nil {
+			fmt.Print("Config already exists at " + cfgPath + ". Overwrite? (y/N): ")
+			if !promptYesNo(os.Stdin, false) {
+				cmd.Println("Setup cancelled.")
+				return nil
 			}
+		}
 
-			cmd.Println("Welcome to Proof! Let's get you configured.")
-			cmd.Println()
+		cmd.Println("Welcome to Proof! Let's get you configured.")
+		cmd.Println()
 
-			// Detect GitHub user
-			username := detectGitHubUser()
+		// Detect GitHub user
+		username := detectGitHubUser()
+		if username != "" {
+			cmd.Printf("Detected GitHub user: %s\n\n", username)
+		}
+
+		reader := bufio.NewReader(os.Stdin)
+
+		// Repos
+		cmd.Print("? Repos to watch (comma-separated, e.g., owner/repo, org/*):\n> ")
+		reposInput, _ := reader.ReadString('\n')
+		repos := parseCSV(reposInput)
+		if len(repos) == 0 {
 			if username != "" {
-				cmd.Printf("Detected GitHub user: %s\n\n", username)
+				repos = []string{username + "/*"}
+			} else {
+				repos = []string{"owner/repo"}
 			}
+		}
 
-			reader := bufio.NewReader(os.Stdin)
+		// Dual account
+		var copilotToken string
+		cmd.Print("\n? Do you use a separate GitHub account for Copilot AI? (y/N): ")
+		if promptYesNo(os.Stdin, false) {
+			cmd.Print("? Copilot token or env var (leave empty to use PROOF_COPILOT_TOKEN): ")
+			copilotToken, _ = reader.ReadString('\n')
+			copilotToken = strings.TrimSpace(copilotToken)
+		}
 
-			// Repos
-			cmd.Print("? Repos to watch (comma-separated, e.g., owner/repo, org/*):\n> ")
-			reposInput, _ := reader.ReadString('\n')
-			repos := parseCSV(reposInput)
-			if len(repos) == 0 {
-				if username != "" {
-					repos = []string{username + "/*"}
-				} else {
-					repos = []string{"owner/repo"}
-				}
-			}
+		// Verdict
+		cmd.Print("\n? Default review verdict (COMMENT/APPROVE/REQUEST_CHANGES) [COMMENT]: ")
+		verdictInput, _ := reader.ReadString('\n')
+		verdict := strings.TrimSpace(strings.ToUpper(verdictInput))
+		if verdict == "" {
+			verdict = "COMMENT"
+		}
 
-			// Dual account
-			var copilotToken string
-			cmd.Print("\n? Do you use a separate GitHub account for Copilot AI? (y/N): ")
-			if promptYesNo(os.Stdin, false) {
-				cmd.Print("? Copilot token or env var (leave empty to use PROOF_COPILOT_TOKEN): ")
-				copilotToken, _ = reader.ReadString('\n')
-				copilotToken = strings.TrimSpace(copilotToken)
-			}
+		// Model
+		cmd.Print("\n? AI model [gpt-4.1]: ")
+		modelInput, _ := reader.ReadString('\n')
+		model := strings.TrimSpace(modelInput)
+		if model == "" {
+			model = "gpt-4.1"
+		}
 
-			// Verdict
-			cmd.Print("\n? Default review verdict (COMMENT/APPROVE/REQUEST_CHANGES) [COMMENT]: ")
-			verdictInput, _ := reader.ReadString('\n')
-			verdict := strings.TrimSpace(strings.ToUpper(verdictInput))
-			if verdict == "" {
-				verdict = "COMMENT"
-			}
+		// Include own
+		cmd.Print("\n? Include your own PRs in batch scans? (y/N): ")
+		includeOwn := promptYesNo(os.Stdin, false)
 
-			// Model
-			cmd.Print("\n? AI model [gpt-4.1]: ")
-			modelInput, _ := reader.ReadString('\n')
-			model := strings.TrimSpace(modelInput)
-			if model == "" {
-				model = "gpt-4.1"
-			}
+		// Generate config
+		cfgContent := generateSetupConfig(repos, copilotToken, verdict, model, includeOwn)
 
-			// Include own
-			cmd.Print("\n? Include your own PRs in batch scans? (y/N): ")
-			includeOwn := promptYesNo(os.Stdin, false)
+		if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+			return fmt.Errorf("creating config directory: %w", err)
+		}
+		if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+			return fmt.Errorf("writing config: %w", err)
+		}
 
-			// Generate config
-			cfgContent := generateSetupConfig(repos, copilotToken, verdict, model, includeOwn)
+		cmd.Printf("\n✓ Config saved to %s\n\n", cfgPath)
+		cmd.Println("Next steps:")
+		cmd.Println("  1. proof poll --dry-run     # test your config")
+		cmd.Println("  2. proof poll               # start reviewing")
+		cmd.Println("  3. proof config show        # view your config")
 
-			if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
-				return fmt.Errorf("creating config directory: %w", err)
-			}
-			if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
-				return fmt.Errorf("writing config: %w", err)
-			}
-
-			cmd.Printf("\n✓ Config saved to %s\n\n", cfgPath)
-			cmd.Println("Next steps:")
-			cmd.Println("  1. proof poll --dry-run     # test your config")
-			cmd.Println("  2. proof poll               # start reviewing")
-			cmd.Println("  3. proof config show        # view your config")
-
-			return nil
-		},
-	}
+		return nil
+	},
+}
 
 func init() {
 	rootCmd.AddCommand(setupCmd)

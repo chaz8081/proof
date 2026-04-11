@@ -1200,7 +1200,6 @@ func TestFetchRepoConfig(t *testing.T) {
 	})
 }
 
-
 func TestFindReviewRequests_IncludeOwn(t *testing.T) {
 	mux := http.NewServeMux()
 

@@ -4,6 +4,21 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-04-10
+
+### Added
+- **`proof curate` command** — interactive terminal-based review curation. Walk through each comment with keep/delete/skip, then submit — no browser needed.
+- **Repo-level `.proof.yaml` config** — teams check a `.proof.yaml` into their repo to define review standards. Discovered via GitHub Contents API and merged with user config (user config takes precedence).
+- **Curation learning** — tracks deltas between AI-generated reviews and what users actually submit in `~/.proof/learning.jsonl`. Records comments kept vs deleted and verdict changes for quality analysis.
+- **Diff-aware re-review** — `--re-review` now sends only the incremental diff (changes since last review) with previous summary as context, producing focused delta reviews instead of full re-reviews.
+
+### Fixed
+- `FetchRepoConfig` now distinguishes 404 (no file) from real errors (auth, network) instead of silently swallowing all failures
+- `proof curate` validates verdict input before submitting to prevent GitHub 422 errors
+- `saveLearningDelta` creates `~/.proof/` directory if it doesn't exist
+- SHA display uses `shortSHA()` helper to prevent panic on malformed pending records
+- Learning deltas are now recorded from both `proof submit` and `proof curate` (was only submit)
+
 ## [1.1.0] — 2026-04-10
 
 ### Added

@@ -53,7 +53,6 @@ func detectGitHubUser() string {
 	return strings.TrimSpace(string(output))
 }
 
-
 func newConfigInitCmd(cfgPath string) *cobra.Command {
 	return &cobra.Command{
 		Use:     "init",

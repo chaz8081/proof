@@ -16,8 +16,8 @@ func TestPromptYesNo(t *testing.T) {
 		{"Y\n", false, true},
 		{"n\n", true, false},
 		{"no\n", true, false},
-		{"\n", true, true},       // empty = default
-		{"\n", false, false},     // empty = default (false)
+		{"\n", true, true},        // empty = default
+		{"\n", false, false},      // empty = default (false)
 		{"maybe\n", false, false}, // unknown = default
 	}
 	for _, tt := range tests {
