@@ -296,6 +296,19 @@ func reviewPR(
 	if err != nil {
 		return nil, fmt.Errorf("error checking existing reviews: %v", err)
 	}
+
+	// Look up the existing store record (needed for re-review diff and summary context).
+	var existingRecord *proofstore.PendingRecord
+	if storeRecords, lerr := pendingStore.List(); lerr == nil {
+		for i := range storeRecords {
+			r := &storeRecords[i]
+			if r.Owner == pr.Owner && r.Repo == pr.Repo && r.Number == pr.Number {
+				existingRecord = r
+				break
+			}
+		}
+	}
+
 	if len(existing) > 0 {
 		if !opts.ReReview {
 			if opts.Output != "json" {
@@ -325,6 +338,12 @@ func reviewPR(
 		prCtx.RepoInstructions = *repoInstructions
 	}
 
+	// Fetch repo-level .proof.yaml
+	repoCfg, err := ghClient.FetchRepoConfig(ctx, pr.Owner, pr.Repo)
+	if err != nil {
+		cmd.PrintErrf("  Warning: Failed to parse repo .proof.yaml: %v\n", err)
+	}
+
 	// Resolve instructions: per-repo override > global config
 	instructions := cfg.Review.Instructions
 	if repoInstr := cfg.RepoInstructions(pr.Owner, pr.Repo); repoInstr != "" {
@@ -332,6 +351,16 @@ func reviewPR(
 	}
 	prCtx.Instructions = instructions
 	prCtx.Model = reviewModel
+
+	// Merge repo config: repo config provides defaults where user hasn't configured
+	if repoCfg != nil {
+		if prCtx.Instructions == "" && repoCfg.Instructions != "" {
+			prCtx.Instructions = repoCfg.Instructions
+		}
+		if prCtx.Model == "" && repoCfg.Model != "" {
+			prCtx.Model = repoCfg.Model
+		}
+	}
 
 	var spin *spinner
 	if opts.Output != "json" {
@@ -356,6 +385,12 @@ func reviewPR(
 		Number:   pr.Number,
 		ReviewID: reviewID,
 		Created:  time.Now(),
+		OriginalResult: &proofstore.OriginalReview{
+			Summary:      result.Summary,
+			Verdict:      result.Verdict,
+			CommentCount: len(result.Comments),
+			CommentPaths: extractPaths(result.Comments),
+		},
 	}); err != nil {
 		cmd.PrintErrf("  Warning: Failed to record pending review locally: %v\n", err)
 	}

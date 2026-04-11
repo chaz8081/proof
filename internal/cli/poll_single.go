@@ -101,6 +101,22 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		prCtx.RepoInstructions = *repoInstructions
 	}
 
+	// Fetch repo-level .proof.yaml
+	repoCfg, err := ghClient.FetchRepoConfig(ctx, owner, repo)
+	if err != nil {
+		cmd.PrintErrf("  Warning: Failed to parse repo .proof.yaml: %v\n", err)
+	}
+
+	// Merge repo config: repo config provides defaults where user hasn't configured
+	if repoCfg != nil {
+		if prCtx.Instructions == "" && repoCfg.Instructions != "" {
+			prCtx.Instructions = repoCfg.Instructions
+		}
+		if prCtx.Model == "" && repoCfg.Model != "" {
+			prCtx.Model = repoCfg.Model
+		}
+	}
+
 	// Review
 	copilotToken := resolveCopilotToken(cfg, token)
 	reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
@@ -128,7 +144,17 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 
 	pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 	pendingStore.Add(proofstore.PendingRecord{
-		Owner: owner, Repo: repo, Number: number, ReviewID: reviewID, Created: time.Now(),
+		Owner:    owner,
+		Repo:     repo,
+		Number:   number,
+		ReviewID: reviewID,
+		Created:  time.Now(),
+		OriginalResult: &proofstore.OriginalReview{
+			Summary:      result.Summary,
+			Verdict:      result.Verdict,
+			CommentCount: len(result.Comments),
+			CommentPaths: extractPaths(result.Comments),
+		},
 	})
 
 	if opts.Output == "json" {

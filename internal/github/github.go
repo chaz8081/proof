@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/chaz8081/proof/internal/config"
 	"github.com/chaz8081/proof/internal/review"
 	gh "github.com/google/go-github/v68/github"
 	"golang.org/x/oauth2"
+	"gopkg.in/yaml.v3"
 )
 
 // Client wraps the go-github client with proof-specific functionality.
@@ -252,7 +254,25 @@ func (c *Client) GetPRContext(ctx context.Context, owner, repo string, number in
 		Description: pr.GetBody(),
 		Diff:        diff,
 		Files:       files,
+		HeadSHA:     pr.GetHead().GetSHA(),
 	}, nil
+}
+
+// GetCommitDiff fetches the diff between two commits.
+// It uses the GitHub compare API and builds a unified-diff-style string from the file patches.
+func (c *Client) GetCommitDiff(ctx context.Context, owner, repo, base, head string) (string, error) {
+	comparison, _, err := c.gh.Repositories.CompareCommits(ctx, owner, repo, base, head, nil)
+	if err != nil {
+		return "", fmt.Errorf("comparing commits: %w", err)
+	}
+	var diff strings.Builder
+	for _, f := range comparison.Files {
+		if f.GetPatch() != "" {
+			fmt.Fprintf(&diff, "diff --git a/%s b/%s\n", f.GetFilename(), f.GetFilename())
+			fmt.Fprintf(&diff, "%s\n", f.GetPatch())
+		}
+	}
+	return diff.String(), nil
 }
 
 // PendingReviewInfo represents a pending review on a PR.
@@ -459,6 +479,24 @@ func (c *Client) FetchRepoInstructions(ctx context.Context, owner, repo string, 
 	}
 
 	return instructions, nil
+}
+
+// FetchRepoConfig fetches .proof.yaml from the repo root if it exists.
+// Returns nil if not found (404 is not an error).
+func (c *Client) FetchRepoConfig(ctx context.Context, owner, repo string) (*config.ReviewConfig, error) {
+	content, err := c.fetchFileContent(ctx, owner, repo, ".proof.yaml")
+	if err != nil {
+		return nil, nil // not found = no repo config
+	}
+
+	var repoCfg struct {
+		Review config.ReviewConfig `yaml:"review"`
+	}
+	if err := yaml.Unmarshal([]byte(content), &repoCfg); err != nil {
+		return nil, fmt.Errorf("parsing .proof.yaml: %w", err)
+	}
+
+	return &repoCfg.Review, nil
 }
 
 // fetchFileContent retrieves the decoded text content of a single file via the GitHub contents API.

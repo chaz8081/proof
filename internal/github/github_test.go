@@ -1037,6 +1037,93 @@ func TestMatchesChangedFiles(t *testing.T) {
 	}
 }
 
+func TestFetchRepoConfig(t *testing.T) {
+	t.Run("valid .proof.yaml", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/owner/repo/contents/.proof.yaml", func(w http.ResponseWriter, r *http.Request) {
+			body := "review:\n  instructions: \"Always require tests.\"\n  model: gpt-4o\n"
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fileContentJSON(".proof.yaml", ".proof.yaml", body)))
+		})
+
+		client := testClient(t, mux)
+		cfg, err := client.FetchRepoConfig(context.Background(), "owner", "repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg == nil {
+			t.Fatal("expected non-nil config")
+		}
+		if cfg.Instructions != "Always require tests." {
+			t.Errorf("unexpected Instructions: %q", cfg.Instructions)
+		}
+		if cfg.Model != "gpt-4o" {
+			t.Errorf("unexpected Model: %q", cfg.Model)
+		}
+	})
+
+	t.Run("missing file returns nil", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/owner/repo/contents/.proof.yaml", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"message":"Not Found"}`))
+		})
+
+		client := testClient(t, mux)
+		cfg, err := client.FetchRepoConfig(context.Background(), "owner", "repo")
+		if err != nil {
+			t.Fatalf("expected nil error for missing file, got: %v", err)
+		}
+		if cfg != nil {
+			t.Errorf("expected nil config for missing file, got: %+v", cfg)
+		}
+	})
+
+	t.Run("invalid YAML returns error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/owner/repo/contents/.proof.yaml", func(w http.ResponseWriter, r *http.Request) {
+			// Malformed YAML: tab characters are invalid in YAML
+			body := "review:\n\tinstructions: bad\n"
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fileContentJSON(".proof.yaml", ".proof.yaml", body)))
+		})
+
+		client := testClient(t, mux)
+		cfg, err := client.FetchRepoConfig(context.Background(), "owner", "repo")
+		if err == nil {
+			t.Errorf("expected error for invalid YAML, got nil (cfg=%+v)", cfg)
+		}
+		if !strings.Contains(err.Error(), "parsing .proof.yaml") {
+			t.Errorf("expected error to mention parsing, got: %v", err)
+		}
+	})
+
+	t.Run("partial config — only model set", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/owner/repo/contents/.proof.yaml", func(w http.ResponseWriter, r *http.Request) {
+			body := "review:\n  model: gpt-4.1\n"
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(fileContentJSON(".proof.yaml", ".proof.yaml", body)))
+		})
+
+		client := testClient(t, mux)
+		cfg, err := client.FetchRepoConfig(context.Background(), "owner", "repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg == nil {
+			t.Fatal("expected non-nil config")
+		}
+		if cfg.Model != "gpt-4.1" {
+			t.Errorf("unexpected Model: %q", cfg.Model)
+		}
+		if cfg.Instructions != "" {
+			t.Errorf("expected empty Instructions, got: %q", cfg.Instructions)
+		}
+	})
+}
+
+
 func TestFindReviewRequests_IncludeOwn(t *testing.T) {
 	mux := http.NewServeMux()
 
