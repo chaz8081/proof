@@ -81,10 +81,10 @@ type ReviewProfile struct {
 }
 
 type ReviewConfig struct {
-	DefaultVerdict string                    `yaml:"default_verdict,omitempty"`
-	Instructions   string                    `yaml:"instructions,omitempty"`
-	Model          string                    `yaml:"model,omitempty"`
-	Profiles       map[string]ReviewProfile  `yaml:"profiles,omitempty"`
+	DefaultVerdict string                   `yaml:"default_verdict,omitempty"`
+	Instructions   string                   `yaml:"instructions,omitempty"`
+	Model          string                   `yaml:"model,omitempty"`
+	Profiles       map[string]ReviewProfile `yaml:"profiles,omitempty"`
 }
 
 func LoadFromPath(path string) (*Config, error) {

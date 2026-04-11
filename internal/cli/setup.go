@@ -14,9 +14,10 @@ import (
 )
 
 var setupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "Guided first-run configuration wizard",
-	Long:  "Interactive wizard that creates ~/.proof/config.yaml with your preferences.",
+	Use:     "setup",
+	Short:   "Guided first-run configuration wizard",
+	Long:    "Interactive wizard that creates ~/.proof/config.yaml with your preferences.",
+	Example: "  proof setup",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
 
