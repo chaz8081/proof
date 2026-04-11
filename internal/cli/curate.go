@@ -121,8 +121,25 @@ func init() {
 				return fmt.Errorf("submitting review: %w", err)
 			}
 
-			// Clean up store
+			// Learning: track curation delta
 			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+			stored, _ := pendingStore.List()
+			for _, rec := range stored {
+				if rec.Owner == owner && rec.Repo == repo && rec.Number == number && rec.OriginalResult != nil {
+					// Count surviving comments (original minus deleted during curation)
+					survivingComments := len(comments) - deleted
+					delta := computeDelta(rec.OriginalResult, survivingComments, verdictInput)
+					delta.Owner = owner
+					delta.Repo = repo
+					delta.Number = number
+					if err := saveLearningDelta(delta); err != nil {
+						cmd.PrintErrf("Warning: Failed to save learning delta: %v\n", err)
+					}
+					break
+				}
+			}
+
+			// Clean up store
 			pendingStore.Remove(owner, repo, number)
 
 			cmd.Printf("✓ Review submitted on %s/%s#%d as %s\n", owner, repo, number, verdictInput)

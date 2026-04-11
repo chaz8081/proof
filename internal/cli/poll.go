@@ -76,6 +76,14 @@ func init() {
 	rootCmd.AddCommand(pollCmd)
 }
 
+// shortSHA returns the first 7 characters of a SHA, or the full string if shorter.
+func shortSHA(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
+}
+
 // pollRouter dispatches to the single-PR or multi-PR flow based on args.
 func pollRouter(cmd *cobra.Command, args []string, opts pollOptions) error {
 	if len(args) > 0 {

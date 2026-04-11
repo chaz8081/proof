@@ -143,7 +143,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 			}
 			prCtx.Instructions += "\n\nThis is a RE-REVIEW. You previously reviewed this PR. Focus only on the changes since your last review. Previous summary: " + prevSummary
 			if opts.Output != "json" {
-				cmd.Printf("  Re-reviewing incremental diff (%s..%s)\n", existingRecord.HeadSHA[:7], prCtx.HeadSHA[:7])
+				cmd.Printf("  Re-reviewing incremental diff (%s..%s)\n", shortSHA(existingRecord.HeadSHA), shortSHA(prCtx.HeadSHA))
 			}
 		}
 		// If incremental diff fails or is empty, fall through to full diff
