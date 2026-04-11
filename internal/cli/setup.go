@@ -4,6 +4,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,7 +105,7 @@ func init() {
 	rootCmd.AddCommand(setupCmd)
 }
 
-func promptYesNo(r *os.File, defaultVal bool) bool {
+func promptYesNo(r io.Reader, defaultVal bool) bool {
 	scanner := bufio.NewScanner(r)
 	if !scanner.Scan() {
 		return defaultVal
