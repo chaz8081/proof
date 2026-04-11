@@ -515,6 +515,12 @@ func (c *Client) FetchRepoConfig(ctx context.Context, owner, repo string) (*conf
 	return &repoCfg.Review, nil
 }
 
+// FetchFileContent retrieves the decoded text content of a single file via the GitHub contents API.
+// Returns an error if the path is a directory, the file cannot be retrieved, or the content exceeds 100KB.
+func (c *Client) FetchFileContent(ctx context.Context, owner, repo, path string) (string, error) {
+	return c.fetchFileContent(ctx, owner, repo, path)
+}
+
 // fetchFileContent retrieves the decoded text content of a single file via the GitHub contents API.
 // Returns an error if the path is a directory, the file cannot be retrieved, or the content exceeds 100KB.
 func (c *Client) fetchFileContent(ctx context.Context, owner, repo, path string) (string, error) {
