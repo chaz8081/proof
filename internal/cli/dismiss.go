@@ -12,9 +12,9 @@ import (
 
 func init() {
 	dismissCmd := &cobra.Command{
-		Use:   "dismiss <owner/repo#number>",
-		Short: "Delete a pending review from GitHub",
-		Long:  "Deletes your pending review on the specified PR and removes it from the local store.",
+		Use:     "dismiss <owner/repo#number>",
+		Short:   "Delete a pending review from GitHub",
+		Long:    "Deletes your pending review on the specified PR and removes it from the local store.",
 		Example: `  proof dismiss owner/repo#123`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

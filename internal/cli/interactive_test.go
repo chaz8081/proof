@@ -15,10 +15,10 @@ func TestParseSelection(t *testing.T) {
 		{"1,3", 4, []int{1, 3}, false, false},
 		{"1-4", 4, []int{1, 2, 3, 4}, false, false},
 		{"all", 4, []int{1, 2, 3, 4}, false, false},
-		{"", 4, nil, true, false},        // default: new only
+		{"", 4, nil, true, false}, // default: new only
 		{"new", 4, nil, true, false},
-		{"5", 4, nil, false, true},       // out of range
-		{"abc", 4, nil, false, true},     // invalid
+		{"5", 4, nil, false, true},   // out of range
+		{"abc", 4, nil, false, true}, // invalid
 		{"2", 4, []int{2}, false, false},
 		{"1,2-3", 4, []int{1, 2, 3}, false, false},
 	}
