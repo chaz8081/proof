@@ -21,6 +21,7 @@ func init() {
 	var reReview bool
 	var every string
 	var includeOwn bool
+	var batch bool
 
 	pollCmd := &cobra.Command{
 		Use:   "poll [owner/repo#number]",
@@ -67,7 +68,12 @@ func init() {
 
 				// Apply config if loaded
 				if cfg != nil {
-					prCtx.Instructions = cfg.Review.Instructions
+					// Resolve instructions: per-repo override > global config
+					instructions := cfg.Review.Instructions
+					if repoInstr := cfg.RepoInstructions(owner, repo); repoInstr != "" {
+						instructions = repoInstr
+					}
+					prCtx.Instructions = instructions
 					prCtx.Model = cfg.Review.Model
 				}
 				if model != "" {
@@ -186,19 +192,78 @@ func init() {
 					cmd.Println("No PRs waiting for your review.")
 				} else {
 					cmd.Printf("Found %d PR(s) requesting your review:\n\n", len(prs))
-					for _, pr := range prs {
-						cmd.Printf("  • %s/%s#%d — %s (by @%s)\n", pr.Owner, pr.Repo, pr.Number, pr.Title, pr.Author)
+
+					// Interactive selection: default when not in batch/watch/dry-run/single-PR mode
+					if !batch && every == "" && !dryRun && len(args) == 0 {
+						items := make([]prDisplayItem, len(prs))
+						for i, pr := range prs {
+							status := "NEW"
+							var revID int64
+							existing, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
+							if err == nil && len(existing) > 0 {
+								status = "PENDING"
+								revID = existing[0].ID
+							}
+							items[i] = prDisplayItem{
+								Index:    i + 1,
+								Owner:    pr.Owner,
+								Repo:     pr.Repo,
+								Number:   pr.Number,
+								Title:    pr.Title,
+								Author:   pr.Author,
+								Status:   status,
+								ReviewID: revID,
+							}
+						}
+
+						displayPRList(cmd.OutOrStdout(), items)
+
+						selected, err := promptSelection(os.Stdin, cmd.OutOrStdout(), len(items))
+						if err != nil {
+							return fmt.Errorf("selection error: %w", err)
+						}
+
+						// Filter PRs based on selection
+						if selected == nil {
+							// Default: new only
+							var filtered []proofgh.PRInfo
+							for _, item := range items {
+								if item.Status == "NEW" {
+									filtered = append(filtered, prs[item.Index-1])
+								}
+							}
+							prs = filtered
+						} else {
+							var filtered []proofgh.PRInfo
+							for _, idx := range selected {
+								filtered = append(filtered, prs[idx-1])
+							}
+							prs = filtered
+						}
+
+						if len(prs) == 0 {
+							cmd.Println("No PRs selected for review.")
+							if every == "" {
+								return nil
+							}
+						} else {
+							cmd.Println() // blank line before review output
+						}
+					} else {
+						for _, pr := range prs {
+							cmd.Printf("  • %s/%s#%d — %s (by @%s)\n", pr.Owner, pr.Repo, pr.Number, pr.Title, pr.Author)
+						}
 					}
 
 					if dryRun {
 						cmd.Println("\n(dry run — skipping AI review)")
 					} else {
 						copilotToken := resolveCopilotToken(cfg, token)
-					reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
-					if err != nil {
-						return fmt.Errorf("initializing reviewer: %w", err)
-					}
-					defer cleanup()
+						reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
+						if err != nil {
+							return fmt.Errorf("initializing reviewer: %w", err)
+						}
+						defer cleanup()
 
 						cmd.Println()
 						for _, pr := range prs {
@@ -253,7 +318,12 @@ func init() {
 								prCtx.RepoInstructions = *repoInstructions
 							}
 
-							prCtx.Instructions = cfg.Review.Instructions
+							// Resolve instructions: per-repo override > global config
+							instructions := cfg.Review.Instructions
+							if repoInstr := cfg.RepoInstructions(pr.Owner, pr.Repo); repoInstr != "" {
+								instructions = repoInstr
+							}
+							prCtx.Instructions = instructions
 							prCtx.Model = reviewModel
 							result, err := reviewer.Review(ctx, *prCtx)
 							if err != nil {
@@ -308,5 +378,6 @@ func init() {
 	pollCmd.Flags().BoolVar(&reReview, "re-review", false, "Force re-review of PRs with existing pending reviews")
 	pollCmd.Flags().StringVar(&every, "every", "", "Poll repeatedly at this interval (e.g., 5m, 1h)")
 	pollCmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include your own PRs in the review scan")
+	pollCmd.Flags().BoolVar(&batch, "batch", false, "Review all PRs without interactive selection")
 	rootCmd.AddCommand(pollCmd)
 }
