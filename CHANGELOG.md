@@ -4,6 +4,21 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-04-10
+
+### Added
+- **Structured review history** — every review writes a JSONL record to `~/.proof/reviews.jsonl` with timestamp, PR details, verdict, comment count, file count, diff size, model, and duration
+- **`proof log` command** — show review history, filterable by PR (`--pr owner/repo#42`), time window (`--since 7d`), and count (`--limit 10`). Supports `-o json` output.
+- **`proof stats` command** — aggregate review metrics: total reviews, average comments per PR, verdict breakdown, reviews by repo and model. Supports `--since` for time scoping.
+- **`proof diff` command** — compare two reviews of the same PR to see what changed: verdict, comment count, files, duration, and model differences
+- **Review profiles** — `proof poll --profile quick` (bugs/blockers only, max 5 comments) or `--profile thorough` (comprehensive, all severities). Custom profiles configurable in YAML.
+- **`.proofignore`** — glob-based file exclusion from reviews (similar to `.gitignore`). Supports repo-level and global (`~/.proof/.proofignore`). Filters both file lists and diff content.
+
+### Architecture Decisions
+- **JSONL for history** — append-only, human-readable, greppable. No database dependency. Each review is one JSON line in `reviews.jsonl`. Sufficient for solo dev scale.
+- **Built-in profiles** — `quick` and `thorough` are hardcoded. Custom profiles live in config YAML. Profile instructions are appended to the system prompt.
+- **Two ignore sources** — global `.proofignore` at `~/.proof/` and repo-level `.proofignore` fetched via GitHub Contents API. Both are merged.
+
 ## [1.2.0] — 2026-04-10
 
 ### Added
