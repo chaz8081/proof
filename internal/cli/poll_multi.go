@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -14,6 +15,27 @@ import (
 	proofstore "github.com/chaz8081/proof/internal/store"
 	"github.com/spf13/cobra"
 )
+
+// pollResultItem is the JSON output shape for a completed review.
+type pollResultItem struct {
+	Owner        string `json:"owner"`
+	Repo         string `json:"repo"`
+	Number       int    `json:"number"`
+	ReviewID     int64  `json:"review_id"`
+	Verdict      string `json:"verdict"`
+	CommentCount int    `json:"comment_count"`
+	Summary      string `json:"summary"`
+}
+
+// dryRunResultItem is the JSON output shape for a dry-run PR listing.
+type dryRunResultItem struct {
+	Owner  string `json:"owner"`
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	Status string `json:"status"`
+}
 
 // pollMultiplePRs handles the multi-PR flow: search, interactive selection, batch, and watch modes.
 func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
@@ -83,12 +105,18 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 		}
 
 		if len(prs) == 0 {
-			cmd.Println("No PRs waiting for your review.")
+			if opts.Output == "json" {
+				cmd.Println("[]")
+			} else {
+				cmd.Println("No PRs waiting for your review.")
+			}
 		} else {
-			cmd.Printf("Found %d PR(s) requesting your review:\n\n", len(prs))
+			if opts.Output != "json" {
+				cmd.Printf("Found %d PR(s) requesting your review:\n\n", len(prs))
+			}
 
-			// Interactive selection: default when not in batch/watch/dry-run mode
-			if !opts.Batch && opts.Every == "" && !opts.DryRun && isInteractive() {
+			// Interactive selection: default when not in batch/watch/dry-run/json mode
+			if !opts.Batch && opts.Every == "" && !opts.DryRun && opts.Output != "json" && isInteractive() {
 				items := make([]prDisplayItem, len(prs))
 				for i, pr := range prs {
 					status := "NEW"
@@ -143,14 +171,38 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 				} else {
 					cmd.Println() // blank line before review output
 				}
-			} else {
+			} else if opts.Output != "json" {
 				for _, pr := range prs {
 					cmd.Printf("  • %s/%s#%d — %s (by @%s)\n", pr.Owner, pr.Repo, pr.Number, pr.Title, pr.Author)
 				}
 			}
 
 			if opts.DryRun {
-				cmd.Println("\n(dry run — skipping AI review)")
+				if opts.Output == "json" {
+					dryItems := make([]dryRunResultItem, len(prs))
+					for i, pr := range prs {
+						status := "NEW"
+						existing, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
+						if err == nil && len(existing) > 0 {
+							status = "PENDING"
+						}
+						dryItems[i] = dryRunResultItem{
+							Owner:  pr.Owner,
+							Repo:   pr.Repo,
+							Number: pr.Number,
+							Title:  pr.Title,
+							Author: pr.Author,
+							Status: status,
+						}
+					}
+					data, err := json.Marshal(dryItems)
+					if err != nil {
+						return fmt.Errorf("marshaling JSON: %w", err)
+					}
+					cmd.Println(string(data))
+				} else {
+					cmd.Println("\n(dry run — skipping AI review)")
+				}
 			} else {
 				copilotToken := resolveCopilotToken(cfg, token)
 				reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
@@ -159,11 +211,27 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 				}
 				defer cleanup()
 
-				cmd.Println()
+				if opts.Output != "json" {
+					cmd.Println()
+				}
+				var results []pollResultItem
 				for _, pr := range prs {
-					if err := reviewPR(cmd, ghClient, pr, opts, cfg, reviewer, pendingStore); err != nil {
+					item, err := reviewPR(cmd, ghClient, pr, opts, cfg, reviewer, pendingStore)
+					if err != nil {
 						cmd.PrintErrf("  Warning: %v\n", err)
+					} else if item != nil {
+						results = append(results, *item)
 					}
+				}
+				if opts.Output == "json" {
+					if results == nil {
+						results = []pollResultItem{}
+					}
+					data, err := json.Marshal(results)
+					if err != nil {
+						return fmt.Errorf("marshaling JSON: %w", err)
+					}
+					cmd.Println(string(data))
 				}
 			}
 		}
@@ -187,6 +255,7 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 }
 
 // reviewPR is the shared core: fetch PR context → check existing review → run AI review → create pending → store.
+// Returns a pollResultItem when the review is successfully created, or nil if skipped.
 func reviewPR(
 	cmd *cobra.Command,
 	ghClient *proofgh.Client,
@@ -195,42 +264,52 @@ func reviewPR(
 	cfg *config.Config,
 	reviewer review.Reviewer,
 	pendingStore *proofstore.FileStore,
-) error {
+) (*pollResultItem, error) {
 	ctx := cmd.Context()
 
-	cmd.Printf("Reviewing %s/%s#%d...\n", pr.Owner, pr.Repo, pr.Number)
+	if opts.Output != "json" {
+		cmd.Printf("Reviewing %s/%s#%d...\n", pr.Owner, pr.Repo, pr.Number)
+	}
 
 	prCtx, err := ghClient.GetPRContext(ctx, pr.Owner, pr.Repo, pr.Number)
 	if err != nil {
-		return fmt.Errorf("error fetching PR: %v", err)
+		return nil, fmt.Errorf("error fetching PR: %v", err)
 	}
 
 	if cfg.Poll.MaxFiles > 0 && len(prCtx.Files) > cfg.Poll.MaxFiles {
-		cmd.Printf("  Skipping — %d files exceeds max_files (%d)\n", len(prCtx.Files), cfg.Poll.MaxFiles)
-		return nil
+		if opts.Output != "json" {
+			cmd.Printf("  Skipping — %d files exceeds max_files (%d)\n", len(prCtx.Files), cfg.Poll.MaxFiles)
+		}
+		return nil, nil
 	}
 
 	if cfg.Poll.MaxDiffBytes > 0 && len(prCtx.Diff) > cfg.Poll.MaxDiffBytes {
-		cmd.Printf("  Skipping — diff size %d bytes exceeds max_diff_bytes (%d)\n",
-			len(prCtx.Diff), cfg.Poll.MaxDiffBytes)
-		return nil
+		if opts.Output != "json" {
+			cmd.Printf("  Skipping — diff size %d bytes exceeds max_diff_bytes (%d)\n",
+				len(prCtx.Diff), cfg.Poll.MaxDiffBytes)
+		}
+		return nil, nil
 	}
 
 	// Before creating, check if we already have a pending review
 	existing, err := ghClient.ListPendingReviews(ctx, pr.Owner, pr.Repo, pr.Number)
 	if err != nil {
-		return fmt.Errorf("error checking existing reviews: %v", err)
+		return nil, fmt.Errorf("error checking existing reviews: %v", err)
 	}
 	if len(existing) > 0 {
 		if !opts.ReReview {
-			cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
-			return nil
+			if opts.Output != "json" {
+				cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
+			}
+			return nil, nil
 		}
 		// Delete existing pending review before creating new one
 		if err := ghClient.DeletePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, existing[0].ID); err != nil {
-			return fmt.Errorf("failed to delete existing review: %v", err)
+			return nil, fmt.Errorf("failed to delete existing review: %v", err)
 		}
-		cmd.Printf("  Deleted existing pending review (ID: %d), re-reviewing...\n", existing[0].ID)
+		if opts.Output != "json" {
+			cmd.Printf("  Deleted existing pending review (ID: %d), re-reviewing...\n", existing[0].ID)
+		}
 	}
 
 	reviewModel := cfg.Review.Model
@@ -263,12 +342,12 @@ func reviewPR(
 		spin.stop()
 	}
 	if err != nil {
-		return fmt.Errorf("error during AI review: %v", err)
+		return nil, fmt.Errorf("error during AI review: %v", err)
 	}
 
 	reviewID, err := ghClient.CreatePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, result, prCtx.Diff)
 	if err != nil {
-		return fmt.Errorf("error creating review: %v", err)
+		return nil, fmt.Errorf("error creating review: %v", err)
 	}
 
 	if err := pendingStore.Add(proofstore.PendingRecord{
@@ -281,8 +360,19 @@ func reviewPR(
 		cmd.PrintErrf("  Warning: Failed to record pending review locally: %v\n", err)
 	}
 
-	cmd.Printf("  Done — pending review created (ID: %d) — %d comments, verdict: %s\n",
-		reviewID, len(result.Comments), result.Verdict)
-	cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", pr.Owner, pr.Repo, pr.Number)
-	return nil
+	if opts.Output != "json" {
+		cmd.Printf("  Done — pending review created (ID: %d) — %d comments, verdict: %s\n",
+			reviewID, len(result.Comments), result.Verdict)
+		cmd.Printf("    View: https://github.com/%s/%s/pull/%d\n", pr.Owner, pr.Repo, pr.Number)
+	}
+
+	return &pollResultItem{
+		Owner:        pr.Owner,
+		Repo:         pr.Repo,
+		Number:       pr.Number,
+		ReviewID:     reviewID,
+		Verdict:      result.Verdict,
+		CommentCount: len(result.Comments),
+		Summary:      result.Summary,
+	}, nil
 }

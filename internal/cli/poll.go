@@ -76,27 +76,6 @@ func init() {
 	rootCmd.AddCommand(pollCmd)
 }
 
-// dryRunResultItem is the JSON output shape for --dry-run mode.
-type dryRunResultItem struct {
-	Owner  string `json:"owner"`
-	Repo   string `json:"repo"`
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-	Author string `json:"author"`
-	Status string `json:"status"`
-}
-
-// pollResultItem is the JSON output shape for a completed AI review.
-type pollResultItem struct {
-	Owner        string `json:"owner"`
-	Repo         string `json:"repo"`
-	Number       int    `json:"number"`
-	ReviewID     int64  `json:"review_id"`
-	Verdict      string `json:"verdict"`
-	CommentCount int    `json:"comment_count"`
-	Summary      string `json:"summary"`
-}
-
 // pollRouter dispatches to the single-PR or multi-PR flow based on args.
 func pollRouter(cmd *cobra.Command, args []string, opts pollOptions) error {
 	if len(args) > 0 {

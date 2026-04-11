@@ -32,17 +32,23 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	}
 	ghClient := proofgh.NewClient(token)
 
-	cmd.Printf("Reviewing %s/%s#%d...\n", owner, repo, number)
+	if opts.Output != "json" {
+		cmd.Printf("Reviewing %s/%s#%d...\n", owner, repo, number)
+	}
 
 	// Check for existing pending review
 	existing, err := ghClient.ListPendingReviews(ctx, owner, repo, number)
 	if err == nil && len(existing) > 0 && !opts.ReReview {
-		cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
+		if opts.Output != "json" {
+			cmd.Printf("  Skipping — pending review already exists (ID: %d)\n", existing[0].ID)
+		}
 		return nil
 	}
 	if opts.ReReview && len(existing) > 0 {
 		ghClient.DeletePendingReview(ctx, owner, repo, number, existing[0].ID)
-		cmd.Printf("  Deleted existing pending review (ID: %d), re-reviewing...\n", existing[0].ID)
+		if opts.Output != "json" {
+			cmd.Printf("  Deleted existing pending review (ID: %d), re-reviewing...\n", existing[0].ID)
+		}
 	}
 
 	// Fetch context
@@ -70,7 +76,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 
 	if opts.DryRun {
 		if opts.Output == "json" {
-			item := []dryRunResultItem{{
+			items := []dryRunResultItem{{
 				Owner:  owner,
 				Repo:   repo,
 				Number: number,
@@ -78,13 +84,13 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 				Author: "",
 				Status: "NEW",
 			}}
-			data, err := json.Marshal(item)
+			data, err := json.Marshal(items)
 			if err != nil {
 				return fmt.Errorf("marshaling JSON: %w", err)
 			}
 			cmd.Println(string(data))
 		} else {
-			cmd.Printf("  %s — %s (by @%s)\n  (dry run — skipping AI review)\n", prCtx.Title, prCtx.Description, "")
+			cmd.Printf("  %s — %s\n  (dry run — skipping AI review)\n", prCtx.Title, prCtx.Description)
 		}
 		return nil
 	}
@@ -131,7 +137,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 			Repo:         repo,
 			Number:       number,
 			ReviewID:     reviewID,
-			Verdict:      string(result.Verdict),
+			Verdict:      result.Verdict,
 			CommentCount: len(result.Comments),
 			Summary:      result.Summary,
 		}}
