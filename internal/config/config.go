@@ -74,10 +74,17 @@ type PollConfig struct {
 	IncludeOwn   bool  `yaml:"include_own,omitempty"`
 }
 
+type ReviewProfile struct {
+	Instructions string `yaml:"instructions,omitempty"`
+	SeverityMin  string `yaml:"severity_min,omitempty"` // nit, suggestion, issue, blocker
+	MaxComments  int    `yaml:"max_comments,omitempty"`
+}
+
 type ReviewConfig struct {
-	DefaultVerdict string `yaml:"default_verdict,omitempty"`
-	Instructions   string `yaml:"instructions,omitempty"`
-	Model          string `yaml:"model,omitempty"`
+	DefaultVerdict string                    `yaml:"default_verdict,omitempty"`
+	Instructions   string                    `yaml:"instructions,omitempty"`
+	Model          string                    `yaml:"model,omitempty"`
+	Profiles       map[string]ReviewProfile  `yaml:"profiles,omitempty"`
 }
 
 func LoadFromPath(path string) (*Config, error) {

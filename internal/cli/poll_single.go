@@ -4,6 +4,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -71,6 +72,27 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		return fmt.Errorf("fetching PR context: %w", err)
 	}
 
+	// Load .proofignore patterns
+	var ignorePatterns []string
+	// Global ignore
+	globalIgnorePath := filepath.Join(config.ConfigDir(), ".proofignore")
+	if data, err := os.ReadFile(globalIgnorePath); err == nil {
+		ignorePatterns = append(ignorePatterns, review.ParseIgnorePatterns(string(data))...)
+	}
+	// Repo-level ignore (fetch via GitHub API)
+	if repoIgnore, err := ghClient.FetchFileContent(ctx, owner, repo, ".proofignore"); err == nil {
+		ignorePatterns = append(ignorePatterns, review.ParseIgnorePatterns(repoIgnore)...)
+	}
+	// Apply filtering
+	if len(ignorePatterns) > 0 {
+		originalCount := len(prCtx.Files)
+		prCtx.Files = review.FilterFiles(prCtx.Files, ignorePatterns)
+		prCtx.Diff = review.FilterDiff(prCtx.Diff, ignorePatterns)
+		if filtered := originalCount - len(prCtx.Files); filtered > 0 {
+			cmd.Printf("  Filtered %d file(s) via .proofignore\n", filtered)
+		}
+	}
+
 	// Apply config if loaded
 	if cfg != nil {
 		// Resolve instructions: per-repo override > global config
@@ -86,6 +108,17 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	}
 	if prCtx.Model == "" {
 		prCtx.Model = "gpt-4.1"
+	}
+
+	// Apply review profile if specified
+	if opts.Profile != "" {
+		p := review.ResolveProfile(opts.Profile, cfg)
+		if p == nil {
+			return fmt.Errorf("unknown profile %q — available: quick, thorough", opts.Profile)
+		}
+		if p.Instructions != "" {
+			prCtx.Instructions += "\n\n" + p.Instructions
+		}
 	}
 
 	if opts.DryRun {
@@ -161,7 +194,9 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	if opts.Output != "json" {
 		spin = newSpinner(cmd.OutOrStdout(), "AI reviewing...")
 	}
+	start := time.Now()
 	result, err := reviewer.Review(ctx, *prCtx)
+	duration := time.Since(start)
 	if spin != nil {
 		spin.stop()
 	}
@@ -173,6 +208,23 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	if err != nil {
 		return fmt.Errorf("creating review: %w", err)
 	}
+
+	// Record review in history
+	historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+	_ = historyStore.Append(proofstore.ReviewRecord{
+		Timestamp:    time.Now(),
+		Owner:        owner,
+		Repo:         repo,
+		Number:       number,
+		Title:        prCtx.Title,
+		Verdict:      result.Verdict,
+		CommentCount: len(result.Comments),
+		FileCount:    len(prCtx.Files),
+		DiffBytes:    len(prCtx.Diff),
+		Model:        prCtx.Model,
+		ReviewID:     reviewID,
+		Duration:     duration.Seconds(),
+	})
 
 	pendingStore.Add(proofstore.PendingRecord{
 		Owner:    owner,

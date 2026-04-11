@@ -15,6 +15,7 @@ type pollOptions struct {
 	Model      string
 	Every      string
 	Output     string
+	Profile    string
 	Config     *config.Config
 }
 
@@ -26,6 +27,7 @@ func init() {
 	var includeOwn bool
 	var batch bool
 	var output string
+	var profile string
 
 	pollCmd := &cobra.Command{
 		Use:   "poll [owner/repo#number]",
@@ -61,6 +63,7 @@ func init() {
 				Model:      model,
 				Every:      every,
 				Output:     output,
+				Profile:    profile,
 			}
 			return pollRouter(cmd, args, opts)
 		},
@@ -73,6 +76,7 @@ func init() {
 	pollCmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include your own PRs in the review scan")
 	pollCmd.Flags().BoolVar(&batch, "batch", false, "Review all PRs without interactive selection")
 	pollCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
+	pollCmd.Flags().StringVar(&profile, "profile", "", "Review profile (quick, thorough, or custom)")
 	rootCmd.AddCommand(pollCmd)
 }
 

@@ -276,6 +276,27 @@ func reviewPR(
 		return nil, fmt.Errorf("error fetching PR: %v", err)
 	}
 
+	// Load .proofignore patterns
+	var ignorePatterns []string
+	// Global ignore
+	globalIgnorePath := filepath.Join(config.ConfigDir(), ".proofignore")
+	if data, rerr := os.ReadFile(globalIgnorePath); rerr == nil {
+		ignorePatterns = append(ignorePatterns, review.ParseIgnorePatterns(string(data))...)
+	}
+	// Repo-level ignore (fetch via GitHub API)
+	if repoIgnore, ferr := ghClient.FetchFileContent(ctx, pr.Owner, pr.Repo, ".proofignore"); ferr == nil {
+		ignorePatterns = append(ignorePatterns, review.ParseIgnorePatterns(repoIgnore)...)
+	}
+	// Apply filtering
+	if len(ignorePatterns) > 0 {
+		originalCount := len(prCtx.Files)
+		prCtx.Files = review.FilterFiles(prCtx.Files, ignorePatterns)
+		prCtx.Diff = review.FilterDiff(prCtx.Diff, ignorePatterns)
+		if filtered := originalCount - len(prCtx.Files); filtered > 0 {
+			cmd.Printf("  Filtered %d file(s) via .proofignore\n", filtered)
+		}
+	}
+
 	if cfg.Poll.MaxFiles > 0 && len(prCtx.Files) > cfg.Poll.MaxFiles {
 		if opts.Output != "json" {
 			cmd.Printf("  Skipping — %d files exceeds max_files (%d)\n", len(prCtx.Files), cfg.Poll.MaxFiles)
@@ -362,6 +383,17 @@ func reviewPR(
 		}
 	}
 
+	// Apply review profile if specified
+	if opts.Profile != "" {
+		p := review.ResolveProfile(opts.Profile, cfg)
+		if p == nil {
+			return nil, fmt.Errorf("unknown profile %q — available: quick, thorough", opts.Profile)
+		}
+		if p.Instructions != "" {
+			prCtx.Instructions += "\n\n" + p.Instructions
+		}
+	}
+
 	// Diff-aware re-review: when re-reviewing and we have a stored head SHA,
 	// fetch only the incremental diff since the last review.
 	if opts.ReReview && existingRecord != nil && existingRecord.HeadSHA != "" && prCtx.HeadSHA != "" {
@@ -384,7 +416,9 @@ func reviewPR(
 	if opts.Output != "json" {
 		spin = newSpinner(cmd.OutOrStdout(), "AI reviewing...")
 	}
+	start := time.Now()
 	result, err := reviewer.Review(ctx, *prCtx)
+	duration := time.Since(start)
 	if spin != nil {
 		spin.stop()
 	}
@@ -396,6 +430,24 @@ func reviewPR(
 	if err != nil {
 		return nil, fmt.Errorf("error creating review: %v", err)
 	}
+
+	// Record review in history
+	historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+	_ = historyStore.Append(proofstore.ReviewRecord{
+		Timestamp:    time.Now(),
+		Owner:        pr.Owner,
+		Repo:         pr.Repo,
+		Number:       pr.Number,
+		Title:        prCtx.Title,
+		Author:       pr.Author,
+		Verdict:      result.Verdict,
+		CommentCount: len(result.Comments),
+		FileCount:    len(prCtx.Files),
+		DiffBytes:    len(prCtx.Diff),
+		Model:        prCtx.Model,
+		ReviewID:     reviewID,
+		Duration:     duration.Seconds(),
+	})
 
 	if err := pendingStore.Add(proofstore.PendingRecord{
 		Owner:    pr.Owner,
