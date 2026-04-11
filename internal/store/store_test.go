@@ -140,3 +140,98 @@ func TestFileStore_RemoveLastCleansUpFile(t *testing.T) {
 		t.Errorf("expected file to be deleted after removing last entry, but it still exists")
 	}
 }
+
+func TestFileStore_HeadSHAStoredAndRetrieved(t *testing.T) {
+	s := newTestStore(t)
+
+	r := PendingRecord{
+		Owner:    "acme",
+		Repo:     "alpha",
+		Number:   1,
+		ReviewID: 100,
+		Created:  time.Now(),
+		HeadSHA:  "abc1234def5678",
+		OriginalResult: &OriginalReview{
+			Summary:      "Looks good overall",
+			Verdict:      "APPROVE",
+			CommentCount: 2,
+			CommentPaths: []string{"main.go", "util.go"},
+		},
+	}
+
+	if err := s.Add(r); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+
+	records, err := s.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+
+	got := records[0]
+	if got.HeadSHA != "abc1234def5678" {
+		t.Errorf("expected HeadSHA %q, got %q", "abc1234def5678", got.HeadSHA)
+	}
+	if got.OriginalResult == nil {
+		t.Fatal("expected OriginalResult to be non-nil")
+	}
+	if got.OriginalResult.Summary != "Looks good overall" {
+		t.Errorf("expected Summary %q, got %q", "Looks good overall", got.OriginalResult.Summary)
+	}
+	if got.OriginalResult.Verdict != "APPROVE" {
+		t.Errorf("expected Verdict %q, got %q", "APPROVE", got.OriginalResult.Verdict)
+	}
+	if got.OriginalResult.CommentCount != 2 {
+		t.Errorf("expected CommentCount 2, got %d", got.OriginalResult.CommentCount)
+	}
+	if len(got.OriginalResult.CommentPaths) != 2 {
+		t.Errorf("expected 2 comment paths, got %d", len(got.OriginalResult.CommentPaths))
+	}
+}
+
+func TestFileStore_HeadSHA_UpdatedOnReReview(t *testing.T) {
+	s := newTestStore(t)
+
+	// First review
+	r1 := PendingRecord{
+		Owner:    "acme",
+		Repo:     "alpha",
+		Number:   1,
+		ReviewID: 100,
+		Created:  time.Now(),
+		HeadSHA:  "sha-v1",
+	}
+	if err := s.Add(r1); err != nil {
+		t.Fatalf("Add r1: %v", err)
+	}
+
+	// Re-review updates the record including the new HeadSHA
+	r2 := PendingRecord{
+		Owner:    "acme",
+		Repo:     "alpha",
+		Number:   1,
+		ReviewID: 200,
+		Created:  time.Now(),
+		HeadSHA:  "sha-v2",
+	}
+	if err := s.Add(r2); err != nil {
+		t.Fatalf("Add r2: %v", err)
+	}
+
+	records, err := s.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record after deduplication, got %d", len(records))
+	}
+	if records[0].HeadSHA != "sha-v2" {
+		t.Errorf("expected updated HeadSHA %q, got %q", "sha-v2", records[0].HeadSHA)
+	}
+	if records[0].ReviewID != 200 {
+		t.Errorf("expected updated ReviewID 200, got %d", records[0].ReviewID)
+	}
+}

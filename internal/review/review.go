@@ -29,6 +29,7 @@ type PRContext struct {
 	Instructions     string
 	Model            string
 	RepoInstructions RepoInstructions
+	HeadSHA          string
 }
 
 type ReviewResult struct {

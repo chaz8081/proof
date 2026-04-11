@@ -103,7 +103,7 @@ func TestGetPRContext(t *testing.T) {
 			Number: gh.Ptr(1),
 			Title:  gh.Ptr("Add feature"),
 			Body:   gh.Ptr("This adds a feature"),
-			Head:   &gh.PullRequestBranch{Ref: gh.Ptr("feature")},
+			Head:   &gh.PullRequestBranch{Ref: gh.Ptr("feature"), SHA: gh.Ptr("abc1234")},
 			Base:   &gh.PullRequestBranch{Ref: gh.Ptr("main")},
 			User:   &gh.User{Login: gh.Ptr("alice")},
 		}
@@ -133,6 +133,68 @@ func TestGetPRContext(t *testing.T) {
 	}
 	if len(prCtx.Files) != 2 {
 		t.Errorf("expected 2 files, got %d", len(prCtx.Files))
+	}
+	if prCtx.HeadSHA != "abc1234" {
+		t.Errorf("expected HeadSHA %q, got %q", "abc1234", prCtx.HeadSHA)
+	}
+}
+
+func TestGetCommitDiff(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/compare/abc1234...def5678", func(w http.ResponseWriter, r *http.Request) {
+		comparison := &gh.CommitsComparison{
+			Files: []*gh.CommitFile{
+				{
+					Filename: gh.Ptr("internal/foo.go"),
+					Patch:    gh.Ptr("@@ -1,3 +1,4 @@\n context\n+added line\n unchanged"),
+				},
+				{
+					Filename: gh.Ptr("internal/bar.go"),
+					Patch:    gh.Ptr(""),
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(comparison)
+	})
+
+	client := testClient(t, mux)
+	diff, err := client.GetCommitDiff(context.Background(), "owner", "repo", "abc1234", "def5678")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if diff == "" {
+		t.Fatal("expected non-empty diff")
+	}
+	if !strings.Contains(diff, "diff --git a/internal/foo.go b/internal/foo.go") {
+		t.Errorf("expected diff header for foo.go, got:\n%s", diff)
+	}
+	if !strings.Contains(diff, "@@ -1,3 +1,4 @@") {
+		t.Errorf("expected hunk header in diff, got:\n%s", diff)
+	}
+	// bar.go has empty patch — should be excluded
+	if strings.Contains(diff, "bar.go") {
+		t.Errorf("expected bar.go (empty patch) to be excluded, got:\n%s", diff)
+	}
+}
+
+func TestGetCommitDiff_EmptyComparison(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/repos/owner/repo/compare/abc1234...def5678", func(w http.ResponseWriter, r *http.Request) {
+		comparison := &gh.CommitsComparison{Files: []*gh.CommitFile{}}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(comparison)
+	})
+
+	client := testClient(t, mux)
+	diff, err := client.GetCommitDiff(context.Background(), "owner", "repo", "abc1234", "def5678")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if diff != "" {
+		t.Errorf("expected empty diff for empty comparison, got %q", diff)
 	}
 }
 

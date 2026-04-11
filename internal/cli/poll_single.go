@@ -44,6 +44,20 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		}
 		return nil
 	}
+
+	// Look up existing store record before deleting (needed for incremental diff context).
+	pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+	var existingRecord *proofstore.PendingRecord
+	if storeRecords, lerr := pendingStore.List(); lerr == nil {
+		for i := range storeRecords {
+			r := &storeRecords[i]
+			if r.Owner == owner && r.Repo == repo && r.Number == number {
+				existingRecord = r
+				break
+			}
+		}
+	}
+
 	if opts.ReReview && len(existing) > 0 {
 		ghClient.DeletePendingReview(ctx, owner, repo, number, existing[0].ID)
 		if opts.Output != "json" {
@@ -117,6 +131,24 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		}
 	}
 
+	// Diff-aware re-review: when re-reviewing and we have a stored head SHA,
+	// fetch only the incremental diff since the last review.
+	if opts.ReReview && existingRecord != nil && existingRecord.HeadSHA != "" && prCtx.HeadSHA != "" {
+		incrementalDiff, diffErr := ghClient.GetCommitDiff(ctx, owner, repo, existingRecord.HeadSHA, prCtx.HeadSHA)
+		if diffErr == nil && incrementalDiff != "" {
+			prCtx.Diff = incrementalDiff
+			prevSummary := ""
+			if existingRecord.OriginalResult != nil {
+				prevSummary = existingRecord.OriginalResult.Summary
+			}
+			prCtx.Instructions += "\n\nThis is a RE-REVIEW. You previously reviewed this PR. Focus only on the changes since your last review. Previous summary: " + prevSummary
+			if opts.Output != "json" {
+				cmd.Printf("  Re-reviewing incremental diff (%s..%s)\n", existingRecord.HeadSHA[:7], prCtx.HeadSHA[:7])
+			}
+		}
+		// If incremental diff fails or is empty, fall through to full diff
+	}
+
 	// Review
 	copilotToken := resolveCopilotToken(cfg, token)
 	reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
@@ -142,13 +174,13 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		return fmt.Errorf("creating review: %w", err)
 	}
 
-	pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 	pendingStore.Add(proofstore.PendingRecord{
 		Owner:    owner,
 		Repo:     repo,
 		Number:   number,
 		ReviewID: reviewID,
 		Created:  time.Now(),
+		HeadSHA:  prCtx.HeadSHA,
 		OriginalResult: &proofstore.OriginalReview{
 			Summary:      result.Summary,
 			Verdict:      result.Verdict,
