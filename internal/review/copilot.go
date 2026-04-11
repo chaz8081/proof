@@ -14,8 +14,8 @@ import (
 )
 
 func init() {
-	NewReviewer = func(ctx context.Context) (Reviewer, func(), error) {
-		r, err := NewCopilotReviewer()
+	NewReviewer = func(ctx context.Context, copilotToken string) (Reviewer, func(), error) {
+		r, err := NewCopilotReviewer(copilotToken)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -32,16 +32,21 @@ type CopilotReviewer struct {
 }
 
 // NewCopilotReviewer creates a new CopilotReviewer backed by the Copilot SDK.
-func NewCopilotReviewer() (*CopilotReviewer, error) {
-	token, err := resolveGitHubToken()
-	if err != nil {
-		return nil, fmt.Errorf("resolving GitHub token for Copilot: %w", err)
+// If token is empty, it falls back to resolveGitHubToken (gh auth token).
+func NewCopilotReviewer(token string) (*CopilotReviewer, error) {
+	if token == "" {
+		var err error
+		token, err = resolveGitHubToken()
+		if err != nil {
+			return nil, fmt.Errorf("resolving GitHub token for Copilot: %w", err)
+		}
 	}
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		LogLevel:    "error",
-		GitHubToken: token,
-	})
+	opts := &copilot.ClientOptions{LogLevel: "error"}
+	if token != "" {
+		opts.GitHubToken = token
+	}
+	client := copilot.NewClient(opts)
 
 	return &CopilotReviewer{client: client}, nil
 }

@@ -73,6 +73,11 @@ review:
   # instructions: |         # Custom review instructions appended to AI prompt
   #   Focus on security and error handling.
   #   Flag any hardcoded credentials.
+
+# Authentication (optional — defaults to GITHUB_TOKEN / gh auth token)
+# auth:
+#   github_token: ""     # Token for posting reviews (reviewer identity)
+#   copilot_token: ""    # Token for Copilot SDK (AI model access)
 `, repoExample)
 }
 
