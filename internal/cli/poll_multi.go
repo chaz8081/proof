@@ -362,6 +362,24 @@ func reviewPR(
 		}
 	}
 
+	// Diff-aware re-review: when re-reviewing and we have a stored head SHA,
+	// fetch only the incremental diff since the last review.
+	if opts.ReReview && existingRecord != nil && existingRecord.HeadSHA != "" && prCtx.HeadSHA != "" {
+		incrementalDiff, diffErr := ghClient.GetCommitDiff(ctx, pr.Owner, pr.Repo, existingRecord.HeadSHA, prCtx.HeadSHA)
+		if diffErr == nil && incrementalDiff != "" {
+			prCtx.Diff = incrementalDiff
+			prevSummary := ""
+			if existingRecord.OriginalResult != nil {
+				prevSummary = existingRecord.OriginalResult.Summary
+			}
+			prCtx.Instructions += "\n\nThis is a RE-REVIEW. You previously reviewed this PR. Focus only on the changes since your last review. Previous summary: " + prevSummary
+			if opts.Output != "json" {
+				cmd.Printf("  Re-reviewing incremental diff (%s..%s)\n", existingRecord.HeadSHA[:7], prCtx.HeadSHA[:7])
+			}
+		}
+		// If incremental diff fails or is empty, fall through to full diff
+	}
+
 	var spin *spinner
 	if opts.Output != "json" {
 		spin = newSpinner(cmd.OutOrStdout(), "AI reviewing...")
@@ -385,6 +403,7 @@ func reviewPR(
 		Number:   pr.Number,
 		ReviewID: reviewID,
 		Created:  time.Now(),
+		HeadSHA:  prCtx.HeadSHA,
 		OriginalResult: &proofstore.OriginalReview{
 			Summary:      result.Summary,
 			Verdict:      result.Verdict,

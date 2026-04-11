@@ -113,8 +113,32 @@ func init() {
 				return err
 			}
 
+			// Fetch local record before submit so we can access OriginalResult.
+			localRecords, _ := pendingStore.List()
+			var localRecord *proofstore.PendingRecord
+			for i := range localRecords {
+				if localRecords[i].Owner == owner && localRecords[i].Repo == repo && localRecords[i].Number == number {
+					localRecord = &localRecords[i]
+					break
+				}
+			}
+
 			if err := ghClient.SubmitReview(ctx, owner, repo, number, reviewID, event); err != nil {
 				return fmt.Errorf("submitting review: %w", err)
+			}
+
+			// Learning: compare original AI output vs what was actually submitted.
+			if localRecord != nil && localRecord.OriginalResult != nil {
+				comments, err := ghClient.GetReviewComments(ctx, owner, repo, number, reviewID)
+				if err == nil {
+					delta := computeDelta(localRecord.OriginalResult, len(comments), event)
+					delta.Owner = owner
+					delta.Repo = repo
+					delta.Number = number
+					if err := saveLearningDelta(delta); err != nil {
+						cmd.PrintErrf("Warning: Failed to save learning delta: %v\n", err)
+					}
+				}
 			}
 
 			if err := pendingStore.Remove(owner, repo, number); err != nil {
