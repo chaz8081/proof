@@ -15,6 +15,9 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Show or manage configuration",
+	Example: `  proof config show        # display current config
+  proof config init        # create default config
+  proof config validate    # check config for issues`,
 	// No RunE — shows help with subcommand list by default.
 }
 
@@ -27,8 +30,9 @@ func init() {
 
 func newConfigShowCmd(cfgPath string) *cobra.Command {
 	return &cobra.Command{
-		Use:   "show",
-		Short: "Display current configuration",
+		Use:     "show",
+		Short:   "Display current configuration",
+		Example: `  proof config show`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data, err := os.ReadFile(cfgPath)
 			if err != nil {
@@ -91,8 +95,9 @@ review:
 
 func newConfigInitCmd(cfgPath string) *cobra.Command {
 	return &cobra.Command{
-		Use:   "init",
-		Short: "Create a default configuration file",
+		Use:     "init",
+		Short:   "Create a default configuration file",
+		Example: `  proof config init`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, err := os.Stat(cfgPath); err == nil {
 				return fmt.Errorf("config already exists at %s", cfgPath)

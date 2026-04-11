@@ -16,8 +16,9 @@ func init() {
 
 func newConfigValidateCmd(cfgPath string) *cobra.Command {
 	return &cobra.Command{
-		Use:   "validate",
-		Short: "Validate the configuration file",
+		Use:     "validate",
+		Short:   "Validate the configuration file",
+		Example: `  proof config validate`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := config.LoadFromPath(cfgPath)
 			if err != nil {

@@ -37,6 +37,8 @@ func init() {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show your pending reviews across watched repos",
+		Example: `  proof list
+  proof list -o json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 

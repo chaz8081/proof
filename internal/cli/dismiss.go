@@ -15,7 +15,8 @@ func init() {
 		Use:   "dismiss <owner/repo#number>",
 		Short: "Delete a pending review from GitHub",
 		Long:  "Deletes your pending review on the specified PR and removes it from the local store.",
-		Args:  cobra.ExactArgs(1),
+		Example: `  proof dismiss owner/repo#123`,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 

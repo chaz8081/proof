@@ -62,7 +62,11 @@ func init() {
 		Use:   "submit <owner/repo#number>",
 		Short: "Submit a pending review",
 		Long:  "Submit a pending review to GitHub. Finds your pending review on the PR and submits it.",
-		Args:  cobra.ExactArgs(1),
+		Example: `  proof submit owner/repo#123
+  proof submit owner/repo#123 --approve
+  proof submit owner/repo#123 --request-changes
+  proof submit owner/repo#123 --verdict COMMENT`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 

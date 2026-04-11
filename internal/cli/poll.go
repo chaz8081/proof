@@ -27,7 +27,27 @@ func init() {
 		Use:   "poll [owner/repo#number]",
 		Short: "Check for PRs needing review and generate AI draft reviews",
 		Long:  `Poll for PRs requesting your review and generate AI reviews. Optionally specify a single PR to review directly.`,
-		Args:  cobra.MaximumNArgs(1),
+		Example: `  # Interactive — pick which PRs to review
+  proof poll
+
+  # Review a specific PR directly
+  proof poll owner/repo#123
+
+  # Include your own PRs
+  proof poll --include-own
+
+  # Watch mode — re-scan every 5 minutes
+  proof poll --every 5m --batch
+
+  # Preview without generating reviews
+  proof poll --dry-run
+
+  # Force fresh review on a PR
+  proof poll owner/repo#123 --re-review
+
+  # Use a different AI model
+  proof poll --model claude-haiku-4.5`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 

@@ -16,8 +16,9 @@ var (
 
 func init() {
 	rootCmd.AddCommand(&cobra.Command{
-		Use:   "version",
-		Short: "Print version information",
+		Use:     "version",
+		Short:   "Print version information",
+		Example: `  proof version`,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("proof %s (commit: %s, built: %s)\n", Version, Commit, BuildDate)
 		},
