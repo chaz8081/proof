@@ -395,6 +395,15 @@ func (c *Client) SubmitReview(ctx context.Context, owner, repo string, number in
 	return nil
 }
 
+// DeleteReviewComment deletes a single review comment by ID.
+func (c *Client) DeleteReviewComment(ctx context.Context, owner, repo string, commentID int64) error {
+	_, err := c.gh.PullRequests.DeleteComment(ctx, owner, repo, commentID)
+	if err != nil {
+		return fmt.Errorf("deleting comment: %w", err)
+	}
+	return nil
+}
+
 // DeletePendingReview deletes a pending review from a PR.
 func (c *Client) DeletePendingReview(ctx context.Context, owner, repo string, number int, reviewID int64) error {
 	_, _, err := c.gh.PullRequests.DeletePendingReview(ctx, owner, repo, number, reviewID)

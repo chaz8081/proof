@@ -417,6 +417,21 @@ func TestDeletePendingReview(t *testing.T) {
 	}
 }
 
+func TestDeleteReviewComment(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/owner/repo/pulls/comments/99", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			t.Errorf("expected DELETE, got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	client := testClient(t, mux)
+	err := client.DeleteReviewComment(context.Background(), "owner", "repo", 99)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestFindReviewRequests_WithTeams_Empty(t *testing.T) {
 	mux := http.NewServeMux()
 
