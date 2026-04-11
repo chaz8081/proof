@@ -214,7 +214,7 @@ func init() {
 					cmd.Printf("Found %d PR(s) requesting your review:\n\n", len(prs))
 
 					// Interactive selection: default when not in batch/watch/dry-run/single-PR mode
-					if !batch && every == "" && !dryRun && len(args) == 0 {
+					if !batch && every == "" && !dryRun && len(args) == 0 && isInteractive() {
 						items := make([]prDisplayItem, len(prs))
 						for i, pr := range prs {
 							status := "NEW"

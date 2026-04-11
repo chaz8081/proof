@@ -4,9 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"strings"
 )
+
+// isInteractive returns true if stdin is a terminal (not a pipe or /dev/null).
+func isInteractive() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
 
 type prDisplayItem struct {
 	Index    int
