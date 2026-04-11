@@ -10,11 +10,60 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// RepoEntry represents a single repo in the repos list. It supports both simple
+// string entries and extended map entries with optional per-repo instructions.
+type RepoEntry struct {
+	Name         string `yaml:"name"`
+	Instructions string `yaml:"instructions,omitempty"`
+}
+
+// UnmarshalYAML handles both string and map formats in repos config.
+func (r *RepoEntry) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		r.Name = value.Value
+		return nil
+	}
+	type repoEntryAlias RepoEntry
+	var alias repoEntryAlias
+	if err := value.Decode(&alias); err != nil {
+		return err
+	}
+	*r = RepoEntry(alias)
+	return nil
+}
+
 type Config struct {
-	Repos  []string     `yaml:"repos"`
+	Repos  []RepoEntry  `yaml:"repos"`
 	Teams  []string     `yaml:"teams,omitempty"`
 	Poll   PollConfig   `yaml:"poll,omitempty"`
 	Review ReviewConfig `yaml:"review,omitempty"`
+	Auth   AuthConfig   `yaml:"auth,omitempty"`
+}
+
+// RepoNames returns the repo name strings from the Repos slice, for use with
+// callers that expect []string (e.g., FindReviewRequests).
+func (c *Config) RepoNames() []string {
+	names := make([]string, len(c.Repos))
+	for i, r := range c.Repos {
+		names[i] = r.Name
+	}
+	return names
+}
+
+// RepoInstructions returns per-repo instructions for a given owner/repo, or empty string.
+func (c *Config) RepoInstructions(owner, repo string) string {
+	fullName := owner + "/" + repo
+	for _, r := range c.Repos {
+		if r.Name == fullName {
+			return r.Instructions
+		}
+	}
+	return ""
+}
+
+type AuthConfig struct {
+	GithubToken  string `yaml:"github_token,omitempty"`
+	CopilotToken string `yaml:"copilot_token,omitempty"`
 }
 
 type PollConfig struct {
@@ -22,6 +71,7 @@ type PollConfig struct {
 	IgnoreWIP    bool  `yaml:"ignore_wip,omitempty"`
 	MaxFiles     int   `yaml:"max_files,omitempty"`
 	MaxDiffBytes int   `yaml:"max_diff_bytes,omitempty"`
+	IncludeOwn   bool  `yaml:"include_own,omitempty"`
 }
 
 type ReviewConfig struct {
@@ -58,7 +108,7 @@ func ConfigDir() string {
 
 func DefaultConfig() *Config {
 	cfg := &Config{
-		Repos: []string{"owner/repo"},
+		Repos: []RepoEntry{{Name: "owner/repo"}},
 	}
 	_ = applyDefaults(cfg) // defaults are always valid
 	return cfg
@@ -72,8 +122,8 @@ func (c *Config) Validate() []string {
 	}
 
 	for _, r := range c.Repos {
-		if !strings.Contains(r, "/") {
-			issues = append(issues, fmt.Sprintf("invalid repo %q — expected owner/repo or org/*", r))
+		if !strings.Contains(r.Name, "/") {
+			issues = append(issues, fmt.Sprintf("invalid repo %q — expected owner/repo or org/*", r.Name))
 		}
 	}
 

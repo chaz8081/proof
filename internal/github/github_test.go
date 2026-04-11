@@ -971,3 +971,171 @@ func TestMatchesChangedFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestFindReviewRequests_IncludeOwn(t *testing.T) {
+	mux := http.NewServeMux()
+
+	var receivedQueries []string
+
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		receivedQueries = append(receivedQueries, q)
+
+		var issues []*gh.Issue
+
+		switch {
+		case strings.Contains(q, "review-requested:@me"):
+			// Personal review request — PR #1 authored by someone else
+			issues = []*gh.Issue{
+				{
+					Number:           gh.Ptr(1),
+					Title:            gh.Ptr("Review Request PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/1")},
+					User:             &gh.User{Login: gh.Ptr("alice")},
+					Draft:            gh.Ptr(false),
+				},
+				// PR #2 also returned here — will be deduped with the author:@me result
+				{
+					Number:           gh.Ptr(2),
+					Title:            gh.Ptr("Own PR also requested"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/2")},
+					User:             &gh.User{Login: gh.Ptr("me")},
+					Draft:            gh.Ptr(false),
+				},
+			}
+		case strings.Contains(q, "author:@me"):
+			// Own PRs — PR #2 (duplicate) and PR #3 (new)
+			issues = []*gh.Issue{
+				{
+					Number:           gh.Ptr(2),
+					Title:            gh.Ptr("Own PR also requested"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/2")},
+					User:             &gh.User{Login: gh.Ptr("me")},
+					Draft:            gh.Ptr(false),
+				},
+				{
+					Number:           gh.Ptr(3),
+					Title:            gh.Ptr("Own PR only"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/3")},
+					User:             &gh.User{Login: gh.Ptr("me")},
+					Draft:            gh.Ptr(false),
+				},
+			}
+		}
+
+		result := &gh.IssuesSearchResult{
+			Total:  gh.Ptr(len(issues)),
+			Issues: issues,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	prs, err := client.FindReviewRequests(
+		context.Background(),
+		[]string{"owner/repo"},
+		WithIncludeOwn(true),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have exactly 3 unique PRs (PR #2 deduplicated).
+	if len(prs) != 3 {
+		t.Fatalf("expected 3 PRs after deduplication, got %d: %+v", len(prs), prs)
+	}
+
+	// Verify both queries were sent.
+	if len(receivedQueries) != 2 {
+		t.Fatalf("expected 2 search queries, got %d: %v", len(receivedQueries), receivedQueries)
+	}
+
+	hasPersonalQuery := false
+	hasOwnQuery := false
+	for _, q := range receivedQueries {
+		if strings.Contains(q, "review-requested:@me") {
+			hasPersonalQuery = true
+		}
+		if strings.Contains(q, "author:@me") {
+			hasOwnQuery = true
+		}
+	}
+	if !hasPersonalQuery {
+		t.Errorf("expected a review-requested:@me query, got: %v", receivedQueries)
+	}
+	if !hasOwnQuery {
+		t.Errorf("expected an author:@me query, got: %v", receivedQueries)
+	}
+
+	// Verify PR numbers: 1, 2, 3.
+	prNums := make(map[int]bool)
+	for _, pr := range prs {
+		prNums[pr.Number] = true
+	}
+	for _, expected := range []int{1, 2, 3} {
+		if !prNums[expected] {
+			t.Errorf("expected PR #%d in results", expected)
+		}
+	}
+}
+
+func TestFindReviewRequests_IncludeOwn_DraftFilter(t *testing.T) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		if !strings.Contains(q, "draft:false") {
+			t.Errorf("expected draft:false in query %q", q)
+		}
+		result := &gh.IssuesSearchResult{Total: gh.Ptr(0), Issues: []*gh.Issue{}}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	_, err := client.FindReviewRequests(
+		context.Background(),
+		[]string{"owner/repo"},
+		WithIgnoreDrafts(true),
+		WithIncludeOwn(true),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFindReviewRequests_IncludeOwn_False(t *testing.T) {
+	mux := http.NewServeMux()
+
+	callCount := 0
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		q := r.URL.Query().Get("q")
+		if strings.Contains(q, "author:@me") {
+			t.Errorf("unexpected author:@me query when IncludeOwn=false: %q", q)
+		}
+		result := &gh.IssuesSearchResult{Total: gh.Ptr(0), Issues: []*gh.Issue{}}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	_, err := client.FindReviewRequests(
+		context.Background(),
+		[]string{"owner/repo"},
+		WithIncludeOwn(false),
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Only one query (personal review-requested) should be sent.
+	if callCount != 1 {
+		t.Errorf("expected 1 search query when IncludeOwn=false, got %d", callCount)
+	}
+}

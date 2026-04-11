@@ -20,6 +20,7 @@ func init() {
 	var model string
 	var reReview bool
 	var every string
+	var includeOwn bool
 
 	pollCmd := &cobra.Command{
 		Use:   "poll [owner/repo#number]",
@@ -36,14 +37,14 @@ func init() {
 					return err
 				}
 
-				token, err := resolveToken()
+				// Load config for instructions/model (but don't need repos list)
+				cfg, _ := config.Load() // OK if no config for single-PR mode
+
+				token, err := resolveGitHubToken(cfg)
 				if err != nil {
 					return err
 				}
 				ghClient := proofgh.NewClient(token)
-
-				// Load config for instructions/model (but don't need repos list)
-				cfg, _ := config.Load() // OK if no config for single-PR mode
 
 				cmd.Printf("Reviewing %s/%s#%d...\n", owner, repo, number)
 
@@ -88,7 +89,8 @@ func init() {
 				}
 
 				// Review
-				reviewer, cleanup, err := review.NewReviewer(ctx)
+				copilotToken := resolveCopilotToken(cfg, token)
+				reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
 				if err != nil {
 					return fmt.Errorf("initializing reviewer: %w", err)
 				}
@@ -148,7 +150,7 @@ func init() {
 					return fmt.Errorf("No repos configured. Edit ~/.proof/config.yaml and add repos to watch.\nExample:\n  repos:\n    - owner/repo\n    - myorg/*")
 				}
 
-				token, err := resolveToken()
+				token, err := resolveGitHubToken(cfg)
 				if err != nil {
 					return err
 				}
@@ -169,10 +171,12 @@ func init() {
 					}
 				}
 
-				prs, err := ghClient.FindReviewRequests(ctx, cfg.Repos,
+				includeOwnResolved := includeOwn || cfg.Poll.IncludeOwn
+				prs, err := ghClient.FindReviewRequests(ctx, cfg.RepoNames(),
 					proofgh.WithIgnoreDrafts(*cfg.Poll.IgnoreDrafts),
 					proofgh.WithIgnoreWIP(cfg.Poll.IgnoreWIP),
 					proofgh.WithTeams(cfg.Teams),
+					proofgh.WithIncludeOwn(includeOwnResolved),
 				)
 				if err != nil {
 					return fmt.Errorf("finding review requests: %w", err)
@@ -189,11 +193,12 @@ func init() {
 					if dryRun {
 						cmd.Println("\n(dry run — skipping AI review)")
 					} else {
-						reviewer, cleanup, err := review.NewReviewer(ctx)
-						if err != nil {
-							return fmt.Errorf("initializing reviewer: %w", err)
-						}
-						defer cleanup()
+						copilotToken := resolveCopilotToken(cfg, token)
+					reviewer, cleanup, err := review.NewReviewer(ctx, copilotToken)
+					if err != nil {
+						return fmt.Errorf("initializing reviewer: %w", err)
+					}
+					defer cleanup()
 
 						cmd.Println()
 						for _, pr := range prs {
@@ -302,5 +307,6 @@ func init() {
 	pollCmd.Flags().StringVar(&model, "model", "", "AI model to use (overrides config)")
 	pollCmd.Flags().BoolVar(&reReview, "re-review", false, "Force re-review of PRs with existing pending reviews")
 	pollCmd.Flags().StringVar(&every, "every", "", "Poll repeatedly at this interval (e.g., 5m, 1h)")
+	pollCmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include your own PRs in the review scan")
 	rootCmd.AddCommand(pollCmd)
 }

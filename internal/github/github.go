@@ -46,6 +46,7 @@ type FindOptions struct {
 	IgnoreDrafts bool
 	IgnoreWIP    bool
 	Teams        []string
+	IncludeOwn   bool
 }
 
 // FindOption is a functional option for FindReviewRequests.
@@ -64,6 +65,11 @@ func WithIgnoreWIP(v bool) FindOption {
 // WithTeams adds team-review-requested queries for the given teams.
 func WithTeams(teams []string) FindOption {
 	return func(o *FindOptions) { o.Teams = teams }
+}
+
+// WithIncludeOwn includes PRs authored by the user in the batch poll results.
+func WithIncludeOwn(v bool) FindOption {
+	return func(o *FindOptions) { o.IncludeOwn = v }
 }
 
 // prKey uniquely identifies a PR for deduplication.
@@ -171,6 +177,33 @@ func (c *Client) FindReviewRequests(ctx context.Context, repos []string, opts ..
 					seen[k] = struct{}{}
 					prs = append(prs, pr)
 				}
+			}
+		}
+	}
+
+	// Run an additional query for PRs authored by the user and deduplicate.
+	if options.IncludeOwn {
+		seen := make(map[prKey]struct{}, len(prs))
+		for _, pr := range prs {
+			seen[prKey{pr.Owner, pr.Repo, pr.Number}] = struct{}{}
+		}
+
+		ownQuery := "is:open is:pr author:@me"
+		if options.IgnoreDrafts {
+			ownQuery += " draft:false"
+		}
+		ownQuery += repoFilter
+
+		ownPRs, err := c.searchPRs(ctx, ownQuery, options)
+		if err != nil {
+			return nil, fmt.Errorf("searching for own PRs: %w", err)
+		}
+
+		for _, pr := range ownPRs {
+			k := prKey{pr.Owner, pr.Repo, pr.Number}
+			if _, exists := seen[k]; !exists {
+				seen[k] = struct{}{}
+				prs = append(prs, pr)
 			}
 		}
 	}
