@@ -3,6 +3,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -495,7 +496,13 @@ func (c *Client) FetchRepoInstructions(ctx context.Context, owner, repo string, 
 func (c *Client) FetchRepoConfig(ctx context.Context, owner, repo string) (*config.ReviewConfig, error) {
 	content, err := c.fetchFileContent(ctx, owner, repo, ".proof.yaml")
 	if err != nil {
-		return nil, nil // not found = no repo config
+		// 404 = no config file, not an error
+		var ghErr *gh.ErrorResponse
+		if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == 404 {
+			return nil, nil
+		}
+		// Other errors (auth, network, etc.) should be surfaced
+		return nil, fmt.Errorf("fetching .proof.yaml: %w", err)
 	}
 
 	var repoCfg struct {

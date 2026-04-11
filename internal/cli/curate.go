@@ -113,6 +113,10 @@ func init() {
 				verdictInput = "COMMENT"
 			}
 
+			if err := validateVerdict(verdictInput); err != nil {
+				return err
+			}
+
 			if err := ghClient.SubmitReview(ctx, owner, repo, number, rev.ID, verdictInput); err != nil {
 				return fmt.Errorf("submitting review: %w", err)
 			}
