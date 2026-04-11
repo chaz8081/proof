@@ -97,34 +97,45 @@ func buildRepoFilter(repos []string) string {
 }
 
 // searchPRs executes a GitHub issue search query and returns PRInfo results,
-// applying IgnoreWIP filtering.
+// applying IgnoreWIP filtering. It paginates through all result pages so that
+// result sets larger than 100 items are not silently truncated.
 func (c *Client) searchPRs(ctx context.Context, query string, options *FindOptions) ([]PRInfo, error) {
-	result, _, err := c.gh.Search.Issues(ctx, query, &gh.SearchOptions{
+	var allPRs []PRInfo
+	opts := &gh.SearchOptions{
 		Sort:        "updated",
 		Order:       "desc",
 		ListOptions: gh.ListOptions{PerPage: 100},
-	})
-	if err != nil {
-		return nil, err
 	}
 
-	var prs []PRInfo
-	for _, issue := range result.Issues {
-		owner, repo := parseRepoURL(issue.GetRepositoryURL())
-		pr := PRInfo{
-			Owner:  owner,
-			Repo:   repo,
-			Number: issue.GetNumber(),
-			Title:  issue.GetTitle(),
-			Author: issue.GetUser().GetLogin(),
-			Draft:  issue.GetDraft(),
+	for {
+		result, resp, err := c.gh.Search.Issues(ctx, query, opts)
+		if err != nil {
+			return nil, err
 		}
-		if options.IgnoreWIP && strings.Contains(strings.ToLower(pr.Title), "wip") {
-			continue
+
+		for _, issue := range result.Issues {
+			owner, repo := parseRepoURL(issue.GetRepositoryURL())
+			pr := PRInfo{
+				Owner:  owner,
+				Repo:   repo,
+				Number: issue.GetNumber(),
+				Title:  issue.GetTitle(),
+				Author: issue.GetUser().GetLogin(),
+				Draft:  issue.GetDraft(),
+			}
+			if options.IgnoreWIP && strings.Contains(strings.ToLower(pr.Title), "wip") {
+				continue
+			}
+			allPRs = append(allPRs, pr)
 		}
-		prs = append(prs, pr)
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
-	return prs, nil
+
+	return allPRs, nil
 }
 
 // FindReviewRequests searches for open PRs where the authenticated user

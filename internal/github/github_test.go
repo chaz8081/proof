@@ -592,6 +592,71 @@ func TestFilterValidComments_NoneValid(t *testing.T) {
 	}
 }
 
+func TestSearchPRs_Pagination(t *testing.T) {
+	mux := http.NewServeMux()
+
+	// Two pages of results: page 1 returns PR #1, page 2 returns PR #2.
+	mux.HandleFunc("/search/issues", func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+
+		var issues []*gh.Issue
+		switch page {
+		case "", "1":
+			issues = []*gh.Issue{
+				{
+					Number:           gh.Ptr(1),
+					Title:            gh.Ptr("First PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/1")},
+					User:             &gh.User{Login: gh.Ptr("alice")},
+					Draft:            gh.Ptr(false),
+				},
+			}
+			// Signal that there is a second page.
+			w.Header().Set("Link", `<`+r.URL.Path+`?page=2>; rel="next"`)
+		case "2":
+			issues = []*gh.Issue{
+				{
+					Number:           gh.Ptr(2),
+					Title:            gh.Ptr("Second PR"),
+					RepositoryURL:    gh.Ptr("https://api.github.com/repos/owner/repo"),
+					PullRequestLinks: &gh.PullRequestLinks{URL: gh.Ptr("https://api.github.com/repos/owner/repo/pulls/2")},
+					User:             &gh.User{Login: gh.Ptr("bob")},
+					Draft:            gh.Ptr(false),
+				},
+			}
+			// No Link header — last page.
+		}
+
+		result := &gh.IssuesSearchResult{
+			Total:  gh.Ptr(2),
+			Issues: issues,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	})
+
+	client := testClient(t, mux)
+	prs, err := client.FindReviewRequests(context.Background(), []string{"owner/repo"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(prs) != 2 {
+		t.Fatalf("expected 2 PRs from paginated results, got %d: %+v", len(prs), prs)
+	}
+
+	prNums := make(map[int]bool)
+	for _, pr := range prs {
+		prNums[pr.Number] = true
+	}
+	for _, expected := range []int{1, 2} {
+		if !prNums[expected] {
+			t.Errorf("expected PR #%d in results", expected)
+		}
+	}
+}
+
 func TestCreatePendingReview_DropsInvalidLines(t *testing.T) {
 	mux := http.NewServeMux()
 
