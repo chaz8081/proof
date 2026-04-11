@@ -4,6 +4,28 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-04-10
+
+### Added
+- **Dual-account support** — separate tokens for Copilot SDK auth (`auth.copilot_token` / `PROOF_COPILOT_TOKEN`) and GitHub API reviewer identity (`auth.github_token`). Use one GitHub account for AI access and another for posting reviews.
+- **Interactive PR selection** — `proof poll` now shows a numbered list of PRs with status tags (`[NEW]` / `[PENDING]`) and lets you select which to review. Default behavior for multi-PR polling. Use `--batch` for the old non-interactive mode.
+- **Self-review mode** — `proof poll --include-own` includes your own PRs in the batch scan. Also configurable via `poll.include_own` in config. Single-PR mode (`proof poll owner/repo#123`) already worked for self-review.
+- **Per-repo instruction overrides** — repos config now supports extended format with per-repo review instructions that override global `review.instructions`:
+  ```yaml
+  repos:
+    - owner/repo-a                    # uses .github/ instructions from repo
+    - name: owner/repo-b              # with custom instructions
+      instructions: |
+        Focus on security in this repo.
+    - myorg/*                          # wildcard
+  ```
+- **Per-repo instructions wired into review flow** — `cfg.RepoInstructions(owner, repo)` overrides global instructions in both single-PR and batch poll paths.
+
+### Architecture Decisions
+- **Interactive as default** — interactive PR selection is the default for batch polls. Watch mode (`--every`), `--dry-run`, `--batch`, and single-PR mode bypass it automatically. Keeps the simple case simple while giving power users control.
+- **Per-repo override > global** — per-repo `instructions` in config take precedence over `review.instructions`. Both are still augmented by `.github/` repo instruction files fetched from GitHub.
+- **Dual-account is opt-in** — if not configured, both paths use the same token (backward compatible). Separate tokens only matter when the Copilot subscriber and reviewer are different accounts.
+
 ## [1.0.0] — 2026-04-10
 
 ### Added
