@@ -106,6 +106,277 @@ review:
   default_verdict: COMMENT
 ```
 
+## Configuration Guide
+
+This section walks through every configuration option in `~/.proof/config.yaml`.
+
+### Quick Start
+
+The only required field is `repos`. Everything else has a sensible default.
+
+```yaml
+# Minimal config — just add your repos
+repos:
+  - owner/repo
+```
+
+Run `proof config init` to generate a starter file, then open it in your editor.
+
+---
+
+### Authentication
+
+By default, proof resolves credentials automatically — no `auth` block required for single-account use.
+
+**Credential resolution order:**
+
+| Purpose | Sources checked (in order) |
+|---|---|
+| Posting reviews | `auth.github_token` → `GITHUB_TOKEN` env var → `gh auth token` |
+| Copilot / AI | `auth.copilot_token` → `PROOF_COPILOT_TOKEN` env var → falls back to reviewer token |
+
+```yaml
+# Default: no auth block needed
+# proof reads GITHUB_TOKEN or calls `gh auth token` automatically
+
+# Dual-account setup — e.g., Copilot subscription on a work account,
+# reviews posted from a personal account
+auth:
+  copilot_token: ghp_xxx    # Account with Copilot subscription (AI access)
+  github_token: ghp_yyy     # Account for posting reviews (reviewer identity)
+```
+
+You can also supply these via environment variables and omit the `auth` block entirely:
+
+```bash
+export GITHUB_TOKEN=ghp_yyy         # reviewer identity
+export PROOF_COPILOT_TOKEN=ghp_xxx  # AI / Copilot access
+```
+
+> **Note:** Tokens in `config.yaml` take precedence over environment variables.
+
+---
+
+### Repos
+
+Repos can be listed in two formats: **simple string** or **extended map**.
+
+```yaml
+repos:
+  # Simple — owner/repo string.
+  # Automatically picks up .github/PULL_REQUEST_TEMPLATE.md or
+  # .github/copilot-instructions.md from the repo as review context.
+  - owner/repo-a
+
+  # Wildcard — watch all repos in an org where you're a requested reviewer
+  - myorg/*
+
+  # Extended — add per-repo review instructions
+  - name: owner/repo-b
+    instructions: |
+      This is a financial services repo.
+      Flag any hardcoded credentials or PII exposure.
+      Prefer structured logging over fmt.Println.
+```
+
+Both formats can be mixed freely in the same list.
+
+---
+
+### Poll Settings
+
+Controls which PRs proof considers when scanning.
+
+```yaml
+poll:
+  ignore_drafts: true       # Skip draft PRs (default: true)
+  ignore_wip: true          # Skip PRs with "WIP" in the title (default: false)
+  include_own: false        # Include your own PRs in batch scan (default: false)
+  max_files: 50             # Skip PRs that touch more than N files (0 = no limit)
+  max_diff_bytes: 500000    # Skip PRs whose diff exceeds N bytes (0 = no limit)
+```
+
+**Field reference:**
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `ignore_drafts` | bool | `true` | Skip PRs marked as draft |
+| `ignore_wip` | bool | `false` | Skip PRs with "WIP" anywhere in the title |
+| `include_own` | bool | `false` | Include PRs you authored in batch scans |
+| `max_files` | int | `0` | Max changed-file count; PRs above this are skipped |
+| `max_diff_bytes` | int | `0` | Max diff size in bytes; PRs above this are skipped |
+
+---
+
+### Review Settings
+
+Controls what the AI produces and how proof presents it.
+
+```yaml
+review:
+  default_verdict: COMMENT   # APPROVE, REQUEST_CHANGES, or COMMENT (default: COMMENT)
+  model: gpt-4.1             # AI model to use (default: gpt-4.1)
+  instructions: |            # Global instructions appended to the AI prompt
+    Prefer table-driven tests over individual test functions.
+    Flag any use of fmt.Println in production code.
+    Always check for missing error handling.
+```
+
+**Field reference:**
+
+| Field | Default | Description |
+|---|---|---|
+| `default_verdict` | `COMMENT` | Verdict applied when submitting. Options: `APPROVE`, `REQUEST_CHANGES`, `COMMENT` |
+| `model` | `gpt-4.1` | AI model. Supported: `gpt-4.1`, `gpt-4.1-mini`, `gpt-5-mini`, `claude-haiku-4.5` |
+| `instructions` | _(none)_ | Free-form text appended to the AI prompt for every review |
+
+> **Tip:** Per-repo `instructions` (under `repos`) are merged with the global `review.instructions` for that repo's reviews.
+
+---
+
+### Teams
+
+Monitor PRs that request a review from a GitHub team — not just your individual account.
+
+```yaml
+teams:
+  - myorg/backend-team    # Any PR requesting this team's review will be picked up
+  - myorg/security-team
+```
+
+---
+
+### Full Annotated Config
+
+```yaml
+# ~/.proof/config.yaml
+
+# ── Repos ───────────────────────────────────────────────────────────────────
+repos:
+  - owner/repo-a              # simple format
+  - myorg/*                   # all repos in an org
+  - name: owner/repo-b        # extended format with per-repo instructions
+    instructions: |
+      Security-sensitive service. Flag PII, hardcoded secrets, and
+      missing input validation on all external inputs.
+
+# ── Teams ───────────────────────────────────────────────────────────────────
+teams:
+  - myorg/backend-team
+
+# ── Poll ────────────────────────────────────────────────────────────────────
+poll:
+  ignore_drafts: true       # skip draft PRs
+  ignore_wip: true          # skip PRs with WIP in title
+  include_own: false        # don't include your own PRs in batch scans
+  max_files: 50             # skip PRs touching > 50 files
+  max_diff_bytes: 500000    # skip PRs with diffs > ~500 KB
+
+# ── Review ──────────────────────────────────────────────────────────────────
+review:
+  default_verdict: COMMENT  # safe default — you decide before submitting
+  model: gpt-4.1
+  instructions: |
+    Prefer table-driven tests.
+    Flag any use of fmt.Println in production code.
+    Check for missing context propagation in Go code.
+
+# ── Auth (optional) ─────────────────────────────────────────────────────────
+auth:
+  github_token: ""          # reviewer identity (falls back to GITHUB_TOKEN)
+  copilot_token: ""         # AI access (falls back to PROOF_COPILOT_TOKEN)
+```
+
+---
+
+### Common Scenarios
+
+#### Solo Developer
+
+You're reviewing your own work or want to preview AI feedback on your PRs before merging.
+
+```yaml
+repos:
+  - yourname/my-project
+
+poll:
+  include_own: true    # include PRs you authored
+
+review:
+  default_verdict: COMMENT
+```
+
+```bash
+proof poll --dry-run          # see which PRs would be picked up
+proof poll yourname/my-project#42   # review a specific PR
+```
+
+#### Team Member
+
+You're on a team and want proof to pick up all PRs where your team — or you directly — is a requested reviewer.
+
+```yaml
+repos:
+  - myorg/*
+
+teams:
+  - myorg/backend-team
+
+poll:
+  ignore_drafts: true
+  ignore_wip: true
+
+review:
+  default_verdict: COMMENT
+  instructions: |
+    Follow our internal Go style guide.
+    Prefer errors.Is/As over direct comparison.
+```
+
+#### Dual-Account Setup (Work Copilot + Personal Reviewer)
+
+Your Copilot subscription is on a work GitHub account, but you want reviews posted from your personal account.
+
+```yaml
+repos:
+  - myorg/backend
+
+auth:
+  copilot_token: ghp_workAccountToken   # has Copilot subscription
+  github_token: ghp_personalToken       # posts reviews as you
+
+review:
+  default_verdict: COMMENT
+```
+
+Alternatively, set environment variables and skip the `auth` block:
+
+```bash
+export PROOF_COPILOT_TOKEN=ghp_workAccountToken
+export GITHUB_TOKEN=ghp_personalToken
+```
+
+#### Security-Focused Repo
+
+Use per-repo instructions to give the AI targeted security guidance for a sensitive codebase.
+
+```yaml
+repos:
+  - name: myorg/payments-service
+    instructions: |
+      This service handles payment processing and PCI-scoped data.
+      Flag any: hardcoded credentials or API keys, PII logged to stdout,
+      missing input validation on external inputs, SQL queries built
+      with string concatenation, and any use of math/rand instead of
+      crypto/rand for security-sensitive operations.
+
+  - myorg/other-repo   # regular repos can coexist
+
+review:
+  default_verdict: REQUEST_CHANGES   # be conservative for this setup
+  model: gpt-4.1
+```
+
 ## Building
 
 The Copilot SDK integration requires a build tag:

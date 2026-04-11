@@ -15,21 +15,29 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Show or manage configuration",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
-		data, err := os.ReadFile(cfgPath)
-		if err != nil {
-			return fmt.Errorf("no config found — run 'proof config init' to create one")
-		}
-		cmd.Println(string(data))
-		return nil
-	},
+	// No RunE — shows help with subcommand list by default.
 }
 
 func init() {
 	cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
 	configCmd.AddCommand(newConfigInitCmd(cfgPath))
+	configCmd.AddCommand(newConfigShowCmd(cfgPath))
 	rootCmd.AddCommand(configCmd)
+}
+
+func newConfigShowCmd(cfgPath string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "show",
+		Short: "Display current configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := os.ReadFile(cfgPath)
+			if err != nil {
+				return fmt.Errorf("no config found — run 'proof config init' to create one")
+			}
+			cmd.Print(string(data))
+			return nil
+		},
+	}
 }
 
 func detectGitHubUser() string {
