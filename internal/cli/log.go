@@ -3,7 +3,9 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/chaz8081/proof/internal/config"
 	proofstore "github.com/chaz8081/proof/internal/store"
@@ -14,6 +16,7 @@ func init() {
 	var pr string
 	var limit int
 	var outputFormat string
+	var since string
 
 	logCmd := &cobra.Command{
 		Use:   "log",
@@ -21,6 +24,7 @@ func init() {
 		Example: `  proof log                    # recent reviews
   proof log --pr owner/repo#42  # reviews for a specific PR
   proof log --limit 5           # last 5 reviews
+  proof log --since 7d          # reviews in last 7 days
   proof log -o json             # JSON output`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
@@ -47,6 +51,26 @@ func init() {
 			if len(records) == 0 {
 				cmd.Println("No review history yet. Run 'proof poll' to start reviewing.")
 				return nil
+			}
+
+			// Filter by --since
+			if since != "" {
+				duration, err := parseDuration(since)
+				if err != nil {
+					return fmt.Errorf("invalid --since value %q: %w", since, err)
+				}
+				cutoff := time.Now().Add(-duration)
+				var filtered []proofstore.ReviewRecord
+				for _, r := range records {
+					if r.Timestamp.After(cutoff) {
+						filtered = append(filtered, r)
+					}
+				}
+				records = filtered
+				if len(records) == 0 {
+					cmd.Printf("No reviews in the last %s.\n", since)
+					return nil
+				}
 			}
 
 			// Reverse for newest-first
@@ -79,5 +103,6 @@ func init() {
 	logCmd.Flags().StringVar(&pr, "pr", "", "Filter by PR (owner/repo#number)")
 	logCmd.Flags().IntVar(&limit, "limit", 20, "Max records to show")
 	logCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json)")
+	logCmd.Flags().StringVar(&since, "since", "", "Time window (e.g., 7d, 30d, 24h)")
 	rootCmd.AddCommand(logCmd)
 }
