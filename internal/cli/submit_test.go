@@ -121,6 +121,12 @@ func TestParsePRRef(t *testing.T) {
 		{"bad-format", "", "", 0, true},
 		{"owner/repo#abc", "", "", 0, true},
 		{"noslash#123", "", "", 0, true},
+		// URL formats
+		{"https://github.com/owner/repo/pull/123", "owner", "repo", 123, false},
+		{"http://github.com/owner/repo/pull/456", "owner", "repo", 456, false},
+		{"https://github.com/my-org/my-repo/pull/1", "my-org", "my-repo", 1, false},
+		{"https://github.com/owner/repo/pull/abc", "", "", 0, true},
+		{"https://github.com/owner/repo/issues/123", "", "", 0, true},
 	}
 
 	for _, tt := range tests {
