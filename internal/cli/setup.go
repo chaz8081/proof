@@ -133,10 +133,10 @@ var setupCmd = &cobra.Command{
 		// Generate config
 		cfgContent := generateSetupConfig(repos, copilotAccount, reviewerAccount, verdict, model, includeOwn)
 
-		if err := os.MkdirAll(filepath.Dir(cfgPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(cfgPath), 0700); err != nil {
 			return fmt.Errorf("creating config directory: %w", err)
 		}
-		if err := os.WriteFile(cfgPath, []byte(cfgContent), 0644); err != nil {
+		if err := os.WriteFile(cfgPath, []byte(cfgContent), 0600); err != nil {
 			return fmt.Errorf("writing config: %w", err)
 		}
 

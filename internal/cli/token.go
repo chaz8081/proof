@@ -73,7 +73,7 @@ func listGHAccounts() ([]string, error) {
 	for _, line := range strings.Split(string(output), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "✓ Logged in to") && strings.Contains(line, "account") {
-			// "✓ Logged in to github.com account chaz8081 (keyring)"
+			// "✓ Logged in to github.com account youruser (keyring)"
 			parts := strings.Fields(line)
 			for i, p := range parts {
 				if p == "account" && i+1 < len(parts) {

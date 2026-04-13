@@ -272,7 +272,7 @@ func TestListPendingReviews(t *testing.T) {
 				ID:    gh.Ptr(int64(42)),
 				State: gh.Ptr("PENDING"),
 				Body:  gh.Ptr("AI review summary"),
-				User:  &gh.User{Login: gh.Ptr("chaz8081")},
+				User:  &gh.User{Login: gh.Ptr("testuser")},
 			},
 			{
 				ID:    gh.Ptr(int64(43)),

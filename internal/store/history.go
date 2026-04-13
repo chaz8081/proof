@@ -38,10 +38,10 @@ func NewHistoryStore(path string) *HistoryStore {
 
 // Append writes a single ReviewRecord as a JSONL line to the history file.
 func (h *HistoryStore) Append(record ReviewRecord) error {
-	if err := os.MkdirAll(filepath.Dir(h.path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(h.path), 0700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(h.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(h.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}

@@ -171,8 +171,8 @@ By default, proof resolves credentials automatically via `gh auth token` — no 
 
 # Dual-account setup
 auth:
-  copilot: chaz8081      # Account with Copilot subscription
-  reviewer: chaz8080     # Account that posts reviews
+  copilot: work-account      # Account with Copilot subscription
+  reviewer: personal-account # Account that posts reviews
 ```
 
 Tokens are resolved at runtime via `gh auth token` — no secrets stored in config. You can also override with environment variables:
@@ -312,8 +312,8 @@ review:
 # ── Auth (optional) ─────────────────────────────────────────────────────────
 # Authentication (optional — uses active gh account by default)
 # auth:
-#   reviewer: chaz8080     # Account that posts reviews
-#   copilot: chaz8081      # Account with Copilot subscription
+#   reviewer: personal-account  # Account that posts reviews
+#   copilot: work-account        # Account with Copilot subscription
 ```
 
 ---
@@ -371,8 +371,8 @@ repos:
   - myorg/backend
 
 auth:
-  copilot: workaccount     # has Copilot subscription
-  reviewer: personalaccount  # posts reviews as you
+  copilot: work-account      # has Copilot subscription
+  reviewer: personal-account # posts reviews as you
 
 review:
   default_verdict: COMMENT

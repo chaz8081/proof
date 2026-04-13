@@ -59,10 +59,10 @@ func computeDelta(original *proofstore.OriginalReview, submittedCount int, submi
 // saveLearningDelta appends a delta record to ~/.proof/learning.jsonl.
 func saveLearningDelta(delta LearningDelta) error {
 	path := filepath.Join(config.ConfigDir(), "learning.jsonl")
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}

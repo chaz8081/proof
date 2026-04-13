@@ -75,12 +75,12 @@ func (s *FileStore) Remove(owner string, repo string, number int) error {
 }
 
 func (s *FileStore) write(records []PendingRecord) error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(records, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, 0600)
 }

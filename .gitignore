@@ -22,3 +22,7 @@ cover.out
 .dolt/
 *.db
 .beads-credential-key
+
+# Development artifacts
+standup/
+.beads/

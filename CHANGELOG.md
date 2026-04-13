@@ -35,7 +35,7 @@ All notable changes to Proof are documented here.
 ## [1.4.1] — 2026-04-12
 
 ### Changed
-- **Auth uses gh account names instead of stored tokens** — config now stores `auth.reviewer` and `auth.copilot` as account names (e.g., `chaz8080`), resolved at runtime via `gh auth token --user <name>`. No secrets in config files.
+- **Auth uses gh account names instead of stored tokens** — config now stores `auth.reviewer` and `auth.copilot` as account names (e.g., `personal-account`), resolved at runtime via `gh auth token --user <name>`. No secrets in config files.
 - **Setup wizard detects gh accounts** — lists available accounts and lets you pick which is for Copilot vs reviews. Single-account users need no auth config at all.
 - **Version command uses debug.BuildInfo** — `proof version` now shows correct version when installed via `go install` (no longer requires ldflags)
 

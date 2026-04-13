@@ -35,7 +35,7 @@ func TestReviewerInterface(t *testing.T) {
 
 	var r Reviewer = mock
 	result, err := r.Review(context.Background(), PRContext{
-		Owner:       "chaz8081",
+		Owner:       "testowner",
 		Repo:        "proof",
 		Number:      1,
 		Title:       "Add feature",
