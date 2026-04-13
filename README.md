@@ -37,9 +37,6 @@ cd proof
 make install
 ```
 
-> **Note:** `go install @latest` does NOT include Copilot SDK support due to a Go toolchain
-> limitation with build tags. Use `make install` or download a pre-built release instead.
-
 ## Setup
 
 ```bash
