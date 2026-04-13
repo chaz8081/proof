@@ -19,9 +19,9 @@ install: build
 
 ## install-local: Build and install to ~/bin (no sudo)
 install-local: build
-	mkdir -p $(HOME)/bin
-	mv $(BINARY) $(HOME)/bin/$(BINARY)
-	@echo "✓ proof $(VERSION) installed to ~/bin/proof"
+	mkdir -p $(GOBIN)
+	mv $(BINARY) $(GOBIN)/$(BINARY)
+	@echo "✓ proof $(VERSION) installed to $(GOBIN)/$(BINARY)"
 
 ## test: Run all tests
 test:
