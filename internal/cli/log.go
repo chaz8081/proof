@@ -49,6 +49,10 @@ func init() {
 			}
 
 			if len(records) == 0 {
+				if outputFormat == "json" {
+					cmd.Println("[]")
+					return nil
+				}
 				cmd.Println("No review history yet. Run 'proof poll' to start reviewing.")
 				return nil
 			}

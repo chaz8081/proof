@@ -4,7 +4,7 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
-## [2.0.0] — 2026-04-10
+## [1.3.0] — 2026-04-12
 
 ### Added
 - **Structured review history** — every review writes a JSONL record to `~/.proof/reviews.jsonl` with timestamp, PR details, verdict, comment count, file count, diff size, model, and duration

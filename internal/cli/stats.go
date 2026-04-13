@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -11,15 +12,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type statsOutput struct {
+	TotalReviews int            `json:"total_reviews"`
+	AvgComments  float64        `json:"avg_comments_per_pr"`
+	AvgDuration  float64        `json:"avg_duration_seconds"`
+	Verdicts     map[string]int `json:"verdicts"`
+	ByRepo       map[string]int `json:"by_repo"`
+	ByModel      map[string]int `json:"by_model"`
+}
+
 func init() {
 	var since string
+	var outputFormat string
 
 	statsCmd := &cobra.Command{
 		Use:   "stats",
 		Short: "Show aggregate review metrics",
 		Example: `  proof stats              # all-time stats
   proof stats --since 7d   # last 7 days
-  proof stats --since 30d  # last 30 days`,
+  proof stats --since 30d  # last 30 days
+  proof stats -o json      # JSON output`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
 			records, err := historyStore.List()
@@ -72,6 +84,21 @@ func init() {
 			avgComments := float64(totalComments) / float64(len(records))
 			avgDuration := totalDuration / float64(len(records))
 
+			// JSON output
+			if outputFormat == "json" {
+				out := statsOutput{
+					TotalReviews: len(records),
+					AvgComments:  avgComments,
+					AvgDuration:  avgDuration,
+					Verdicts:     verdicts,
+					ByRepo:       repos,
+					ByModel:      models,
+				}
+				data, _ := json.MarshalIndent(out, "", "  ")
+				cmd.Println(string(data))
+				return nil
+			}
+
 			// Display
 			cmd.Println("Review Stats")
 			cmd.Println("────────────────────────────────")
@@ -118,6 +145,7 @@ func init() {
 	}
 
 	statsCmd.Flags().StringVar(&since, "since", "", "Time window (e.g., 7d, 30d, 24h)")
+	statsCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json)")
 	rootCmd.AddCommand(statsCmd)
 }
 

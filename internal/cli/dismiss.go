@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/chaz8081/proof/internal/config"
 	proofgh "github.com/chaz8081/proof/internal/github"
@@ -35,7 +36,10 @@ func init() {
 
 			pending, err := ghClient.ListPendingReviews(ctx, owner, repo, number)
 			if err != nil {
-				return fmt.Errorf("listing pending reviews: %w", err)
+				if strings.Contains(err.Error(), "404") {
+					return fmt.Errorf("PR %s/%s#%d not found — check the owner, repo, and PR number", owner, repo, number)
+				}
+				return fmt.Errorf("checking pending reviews: %w", err)
 			}
 			if len(pending) == 0 {
 				return fmt.Errorf("no pending review found on %s/%s#%d", owner, repo, number)
