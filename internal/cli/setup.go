@@ -78,7 +78,7 @@ var setupCmd = &cobra.Command{
 			reviewerAccount = accounts[reviewerIdx]
 
 			if copilotAccount == reviewerAccount {
-				copilotAccount = ""  // same account, no need to store
+				copilotAccount = "" // same account, no need to store
 				reviewerAccount = ""
 			}
 		} else if len(accounts) == 1 {

@@ -4,9 +4,17 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-04-12
+
 ### Removed
 - **`proof submit` command** — reviews must be submitted through GitHub's UI to maintain human-in-the-loop accountability. The CLI is a review preparation tool, not a publishing tool.
 - **Submit step in `proof curate`** — curation now ends after editing comments, directing you to GitHub to submit.
+
+### Security
+- Removed all PII and internal company references from codebase, docs, and git history artifacts
+- Tightened file permissions from 0644/0755 to 0600/0700 for all proof data files
+- Removed standup/ directory (contained internal development context)
+- Added standup/ and .beads/ to .gitignore
 
 ## [1.4.4] — 2026-04-12
 
