@@ -31,7 +31,7 @@ func init() {
 
 	showCmd := &cobra.Command{
 		Use:   "show <owner/repo#number>",
-		Short: "Preview a pending review before submitting",
+		Short: "Preview a pending review",
 		Example: `  proof show owner/repo#123
   proof show owner/repo#123 -o json`,
 		Args: cobra.ExactArgs(1),
