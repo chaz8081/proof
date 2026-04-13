@@ -12,6 +12,7 @@ type pollOptions struct {
 	Batch      bool
 	ReReview   bool
 	IncludeOwn bool
+	ExcludeOwn bool
 	Model      string
 	Every      string
 	Output     string
@@ -25,6 +26,7 @@ func init() {
 	var reReview bool
 	var every string
 	var includeOwn bool
+	var excludeOwn bool
 	var batch bool
 	var output string
 	var profile string
@@ -60,6 +62,7 @@ func init() {
 				Batch:      batch,
 				ReReview:   reReview,
 				IncludeOwn: includeOwn,
+				ExcludeOwn: excludeOwn,
 				Model:      model,
 				Every:      every,
 				Output:     output,
@@ -74,6 +77,7 @@ func init() {
 	pollCmd.Flags().BoolVar(&reReview, "re-review", false, "Force re-review of PRs with existing pending reviews")
 	pollCmd.Flags().StringVar(&every, "every", "", "Poll repeatedly at this interval (e.g., 5m, 1h)")
 	pollCmd.Flags().BoolVar(&includeOwn, "include-own", false, "Include your own PRs in the review scan")
+	pollCmd.Flags().BoolVar(&excludeOwn, "exclude-own", false, "Exclude your own PRs (overrides config include_own)")
 	pollCmd.Flags().BoolVar(&batch, "batch", false, "Review all PRs without interactive selection")
 	pollCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
 	pollCmd.Flags().StringVar(&profile, "profile", "", "Review profile (quick, thorough, or custom)")

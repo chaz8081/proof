@@ -93,7 +93,7 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 			}
 		}
 
-		includeOwnResolved := opts.IncludeOwn || cfg.Poll.IncludeOwn
+		includeOwnResolved := (opts.IncludeOwn || cfg.Poll.IncludeOwn) && !opts.ExcludeOwn
 		prs, err := ghClient.FindReviewRequests(ctx, cfg.RepoNames(),
 			proofgh.WithIgnoreDrafts(*cfg.Poll.IgnoreDrafts),
 			proofgh.WithIgnoreWIP(cfg.Poll.IgnoreWIP),
