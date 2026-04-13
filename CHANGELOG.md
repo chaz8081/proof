@@ -4,6 +4,25 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.4.4] — 2026-04-12
+
+### Added
+- **`proof config models`** — lists available AI models from the Copilot SDK
+- **Interactive model selection in setup wizard** — shows a numbered picker instead of free-text input
+- **`--exclude-own` flag** — overrides `poll.include_own` config to skip your own PRs for a single run
+- **Makefile** — `make install` builds with Copilot SDK + version info and installs to `/usr/local/bin`
+
+### Changed
+- **Auth uses gh account names** — config stores `auth.reviewer` and `auth.copilot` as account names, resolved at runtime via `gh auth token --user`. No tokens in config.
+- **Version fallback** — `proof version` uses `debug.BuildInfo` when ldflags aren't set (fixes `go install` showing `dev`)
+
+### Fixed
+- Invalid model errors now suggest `proof config models`
+- `proof log -o json` returns `[]` when empty
+- `proof stats` has `-o json` flag
+- Error messages for nonexistent PRs show "PR not found" instead of raw API text
+- Removed broken `go install` from README (doesn't include Copilot build tag)
+
 ## [1.4.2] — 2026-04-12
 
 ### Added
