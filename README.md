@@ -122,7 +122,7 @@ proof poll --batch
 ```yaml
 repos:
   - owner/repo-a
-  - myorg/*          # all repos in an org
+  - myorg/* # all repos in an org
 
 teams:
   - myorg/my-team
@@ -160,10 +160,10 @@ By default, proof resolves credentials automatically via `gh auth token` — no 
 
 **Credential resolution order:**
 
-| Purpose | Sources checked (in order) |
-|---|---|
-| Posting reviews | `GITHUB_TOKEN` env var → `gh auth token --user <reviewer>` → `gh auth token` |
-| Copilot / AI | `PROOF_COPILOT_TOKEN` env var → `gh auth token --user <copilot>` → falls back to reviewer token |
+| Purpose         | Sources checked (in order)                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| Posting reviews | `GITHUB_TOKEN` env var → `gh auth token --user <reviewer>` → `gh auth token`                    |
+| Copilot / AI    | `PROOF_COPILOT_TOKEN` env var → `gh auth token --user <copilot>` → falls back to reviewer token |
 
 ```yaml
 # Single account (default — no auth block needed)
@@ -171,7 +171,7 @@ By default, proof resolves credentials automatically via `gh auth token` — no 
 
 # Dual-account setup
 auth:
-  copilot: work-account      # Account with Copilot subscription
+  copilot: work-account # Account with Copilot subscription
   reviewer: personal-account # Account that posts reviews
 ```
 
@@ -217,22 +217,22 @@ Controls which PRs proof considers when scanning.
 
 ```yaml
 poll:
-  ignore_drafts: true       # Skip draft PRs (default: true)
-  ignore_wip: true          # Skip PRs with "WIP" in the title (default: false)
-  include_own: false        # Include your own PRs in batch scan (default: false)
-  max_files: 50             # Skip PRs that touch more than N files (0 = no limit)
-  max_diff_bytes: 500000    # Skip PRs whose diff exceeds N bytes (0 = no limit)
+  ignore_drafts: true # Skip draft PRs (default: true)
+  ignore_wip: true # Skip PRs with "WIP" in the title (default: false)
+  include_own: false # Include your own PRs in batch scan (default: false)
+  max_files: 50 # Skip PRs that touch more than N files (0 = no limit)
+  max_diff_bytes: 500000 # Skip PRs whose diff exceeds N bytes (0 = no limit)
 ```
 
 **Field reference:**
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `ignore_drafts` | bool | `true` | Skip PRs marked as draft |
-| `ignore_wip` | bool | `false` | Skip PRs with "WIP" anywhere in the title |
-| `include_own` | bool | `false` | Include PRs you authored in batch scans |
-| `max_files` | int | `0` | Max changed-file count; PRs above this are skipped |
-| `max_diff_bytes` | int | `0` | Max diff size in bytes; PRs above this are skipped |
+| Field            | Type | Default | Description                                        |
+| ---------------- | ---- | ------- | -------------------------------------------------- |
+| `ignore_drafts`  | bool | `true`  | Skip PRs marked as draft                           |
+| `ignore_wip`     | bool | `false` | Skip PRs with "WIP" anywhere in the title          |
+| `include_own`    | bool | `false` | Include PRs you authored in batch scans            |
+| `max_files`      | int  | `0`     | Max changed-file count; PRs above this are skipped |
+| `max_diff_bytes` | int  | `0`     | Max diff size in bytes; PRs above this are skipped |
 
 ---
 
@@ -242,9 +242,9 @@ Controls what the AI produces and how proof presents it.
 
 ```yaml
 review:
-  default_verdict: COMMENT   # APPROVE, REQUEST_CHANGES, or COMMENT (default: COMMENT)
-  model: gpt-4.1             # AI model to use (default: gpt-4.1)
-  instructions: |            # Global instructions appended to the AI prompt
+  default_verdict: COMMENT # APPROVE, REQUEST_CHANGES, or COMMENT (default: COMMENT)
+  model: gpt-4.1 # AI model to use (default: gpt-4.1)
+  instructions: | # Global instructions appended to the AI prompt
     Prefer table-driven tests over individual test functions.
     Flag any use of fmt.Println in production code.
     Always check for missing error handling.
@@ -252,11 +252,11 @@ review:
 
 **Field reference:**
 
-| Field | Default | Description |
-|---|---|---|
+| Field             | Default   | Description                                                                       |
+| ----------------- | --------- | --------------------------------------------------------------------------------- |
 | `default_verdict` | `COMMENT` | Verdict applied when submitting. Options: `APPROVE`, `REQUEST_CHANGES`, `COMMENT` |
-| `model` | `gpt-4.1` | AI model. Supported: `gpt-4.1`, `gpt-4.1-mini`, `gpt-5-mini`, `claude-haiku-4.5` |
-| `instructions` | _(none)_ | Free-form text appended to the AI prompt for every review |
+| `model`           | `gpt-4.1` | AI model. Supported: `gpt-4.1`, `gpt-4.1-mini`, `gpt-5-mini`, `claude-haiku-4.5`  |
+| `instructions`    | _(none)_  | Free-form text appended to the AI prompt for every review                         |
 
 > **Tip:** Per-repo `instructions` (under `repos`) are merged with the global `review.instructions` for that repo's reviews.
 
@@ -268,7 +268,7 @@ Monitor PRs that request a review from a GitHub team — not just your individua
 
 ```yaml
 teams:
-  - myorg/backend-team    # Any PR requesting this team's review will be picked up
+  - myorg/backend-team # Any PR requesting this team's review will be picked up
   - myorg/security-team
 ```
 
@@ -281,9 +281,9 @@ teams:
 
 # ── Repos ───────────────────────────────────────────────────────────────────
 repos:
-  - owner/repo-a              # simple format
-  - myorg/*                   # all repos in an org
-  - name: owner/repo-b        # extended format with per-repo instructions
+  - owner/repo-a # simple format
+  - myorg/* # all repos in an org
+  - name: owner/repo-b # extended format with per-repo instructions
     instructions: |
       Security-sensitive service. Flag PII, hardcoded secrets, and
       missing input validation on all external inputs.
@@ -294,15 +294,15 @@ teams:
 
 # ── Poll ────────────────────────────────────────────────────────────────────
 poll:
-  ignore_drafts: true       # skip draft PRs
-  ignore_wip: true          # skip PRs with WIP in title
-  include_own: false        # don't include your own PRs in batch scans
-  max_files: 50             # skip PRs touching > 50 files
-  max_diff_bytes: 500000    # skip PRs with diffs > ~500 KB
+  ignore_drafts: true # skip draft PRs
+  ignore_wip: true # skip PRs with WIP in title
+  include_own: false # don't include your own PRs in batch scans
+  max_files: 50 # skip PRs touching > 50 files
+  max_diff_bytes: 500000 # skip PRs with diffs > ~500 KB
 
 # ── Review ──────────────────────────────────────────────────────────────────
 review:
-  default_verdict: COMMENT  # safe default — you decide before submitting
+  default_verdict: COMMENT # safe default — you decide before submitting
   model: gpt-4.1
   instructions: |
     Prefer table-driven tests.
@@ -329,7 +329,7 @@ repos:
   - yourname/my-project
 
 poll:
-  include_own: true    # include PRs you authored
+  include_own: true # include PRs you authored
 
 review:
   default_verdict: COMMENT
@@ -371,7 +371,7 @@ repos:
   - myorg/backend
 
 auth:
-  copilot: work-account      # has Copilot subscription
+  copilot: work-account # has Copilot subscription
   reviewer: personal-account # posts reviews as you
 
 review:
@@ -394,10 +394,10 @@ repos:
       with string concatenation, and any use of math/rand instead of
       crypto/rand for security-sensitive operations.
 
-  - myorg/other-repo   # regular repos can coexist
+  - myorg/other-repo # regular repos can coexist
 
 review:
-  default_verdict: REQUEST_CHANGES   # be conservative for this setup
+  default_verdict: REQUEST_CHANGES # be conservative for this setup
   model: gpt-4.1
 ```
 
@@ -415,3 +415,18 @@ go build -o proof ./cmd/proof
 # Build with version info
 go build -tags=copilot -ldflags "-X github.com/chaz8081/proof/internal/cli.Version=v1.0.0 -X github.com/chaz8081/proof/internal/cli.Commit=$(git rev-parse --short HEAD) -X github.com/chaz8081/proof/internal/cli.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o proof ./cmd/proof
 ```
+
+# Troubleshooting
+
+➜ shop-notice git:(CR-12084) ✗ proof poll
+Found 4 PR(s) requesting your review:
+
+1. [NEW] getbread/kyc#287 — CR-11949 - support callback endpoint (by @hamster-bread)
+2. [NEW] getbread/fraud#1130 — CR-11949 - support interface to accept id upload results from KYC (by @hamster-bread)
+3. [NEW] getbread/fraud#1129 — JUST: 11832 fix wrong order (by @john-slota-bread)
+4. [NEW] getbread/fraud#1092 — remove unused go mod (by @john-slota-bread)
+
+Select PRs to review (e.g., 1,3 or 1-4 or all) [default: new only]: 2
+
+Reviewing getbread/fraud#1130...
+Warning: error during AI review: copilot review request: waiting for session.idle: context deadline exceeded
