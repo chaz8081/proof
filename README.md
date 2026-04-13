@@ -154,34 +154,32 @@ Run `proof config init` to generate a starter file, then open it in your editor.
 
 ### Authentication
 
-By default, proof resolves credentials automatically — no `auth` block required for single-account use.
+By default, proof resolves credentials automatically via `gh auth token` — no `auth` block required for single-account use.
 
 **Credential resolution order:**
 
 | Purpose | Sources checked (in order) |
 |---|---|
-| Posting reviews | `auth.github_token` → `GITHUB_TOKEN` env var → `gh auth token` |
-| Copilot / AI | `auth.copilot_token` → `PROOF_COPILOT_TOKEN` env var → falls back to reviewer token |
+| Posting reviews | `GITHUB_TOKEN` env var → `gh auth token --user <reviewer>` → `gh auth token` |
+| Copilot / AI | `PROOF_COPILOT_TOKEN` env var → `gh auth token --user <copilot>` → falls back to reviewer token |
 
 ```yaml
-# Default: no auth block needed
-# proof reads GITHUB_TOKEN or calls `gh auth token` automatically
+# Single account (default — no auth block needed)
+# Uses the active gh account for everything
 
-# Dual-account setup — e.g., Copilot subscription on a work account,
-# reviews posted from a personal account
+# Dual-account setup
 auth:
-  copilot_token: ghp_xxx    # Account with Copilot subscription (AI access)
-  github_token: ghp_yyy     # Account for posting reviews (reviewer identity)
+  copilot: chaz8081      # Account with Copilot subscription
+  reviewer: chaz8080     # Account that posts reviews
 ```
 
-You can also supply these via environment variables and omit the `auth` block entirely:
+Tokens are resolved at runtime via `gh auth token` — no secrets stored in config. You can also override with environment variables:
 
 ```bash
-export GITHUB_TOKEN=ghp_yyy         # reviewer identity
-export PROOF_COPILOT_TOKEN=ghp_xxx  # AI / Copilot access
+export GITHUB_TOKEN=ghp_yyy    # override reviewer token
 ```
 
-> **Note:** Tokens in `config.yaml` take precedence over environment variables.
+> **Note:** `GITHUB_TOKEN` env var takes precedence over account-based resolution.
 
 ---
 
@@ -310,9 +308,10 @@ review:
     Check for missing context propagation in Go code.
 
 # ── Auth (optional) ─────────────────────────────────────────────────────────
-auth:
-  github_token: ""          # reviewer identity (falls back to GITHUB_TOKEN)
-  copilot_token: ""         # AI access (falls back to PROOF_COPILOT_TOKEN)
+# Authentication (optional — uses active gh account by default)
+# auth:
+#   reviewer: chaz8080     # Account that posts reviews
+#   copilot: chaz8081      # Account with Copilot subscription
 ```
 
 ---
@@ -370,19 +369,14 @@ repos:
   - myorg/backend
 
 auth:
-  copilot_token: ghp_workAccountToken   # has Copilot subscription
-  github_token: ghp_personalToken       # posts reviews as you
+  copilot: workaccount     # has Copilot subscription
+  reviewer: personalaccount  # posts reviews as you
 
 review:
   default_verdict: COMMENT
 ```
 
-Alternatively, set environment variables and skip the `auth` block:
-
-```bash
-export PROOF_COPILOT_TOKEN=ghp_workAccountToken
-export GITHUB_TOKEN=ghp_personalToken
-```
+Tokens are resolved at runtime via `gh auth token --user <name>` — no secrets stored in config. Make sure both accounts are logged in via `gh auth login`.
 
 #### Security-Focused Repo
 

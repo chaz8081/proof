@@ -62,8 +62,8 @@ func (c *Config) RepoInstructions(owner, repo string) string {
 }
 
 type AuthConfig struct {
-	GithubToken  string `yaml:"github_token,omitempty"`
-	CopilotToken string `yaml:"copilot_token,omitempty"`
+	Reviewer string `yaml:"reviewer,omitempty"` // GitHub account name for posting reviews
+	Copilot  string `yaml:"copilot,omitempty"`  // GitHub account name with Copilot subscription
 }
 
 type PollConfig struct {

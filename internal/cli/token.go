@@ -9,45 +9,78 @@ import (
 	"github.com/chaz8081/proof/internal/config"
 )
 
-// resolveGitHubToken returns the token for GitHub API calls (posting reviews).
-// Priority: config auth.github_token > GITHUB_TOKEN env > gh auth token
-func resolveGitHubToken(cfg *config.Config) (string, error) {
-	if cfg != nil && cfg.Auth.GithubToken != "" {
-		return cfg.Auth.GithubToken, nil
-	}
-	return resolveToken()
-}
-
-// resolveCopilotToken returns the token for Copilot SDK auth.
-// Priority: config auth.copilot_token > PROOF_COPILOT_TOKEN env > falls back to GitHub token
-func resolveCopilotToken(cfg *config.Config, githubToken string) string {
-	if cfg != nil && cfg.Auth.CopilotToken != "" {
-		return cfg.Auth.CopilotToken
-	}
-	if t := os.Getenv("PROOF_COPILOT_TOKEN"); t != "" {
-		return t
-	}
-	return githubToken // same account if not configured separately
-}
-
-// resolveToken returns the GitHub token from GITHUB_TOKEN env var,
-// falling back to `gh auth token` if not set.
+// resolveToken returns a GitHub token, using the default gh account.
 func resolveToken() (string, error) {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token != "" {
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
 		return token, nil
 	}
+	return ghAuthToken("")
+}
 
-	cmd := exec.Command("gh", "auth", "token")
+// resolveGitHubToken returns the token for the reviewer account.
+func resolveGitHubToken(cfg *config.Config) (string, error) {
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		return token, nil
+	}
+	if cfg != nil && cfg.Auth.Reviewer != "" {
+		return ghAuthToken(cfg.Auth.Reviewer)
+	}
+	return ghAuthToken("")
+}
+
+// resolveCopilotToken returns the token for the Copilot account.
+func resolveCopilotToken(cfg *config.Config, fallbackToken string) string {
+	if token := os.Getenv("PROOF_COPILOT_TOKEN"); token != "" {
+		return token
+	}
+	if cfg != nil && cfg.Auth.Copilot != "" {
+		token, err := ghAuthToken(cfg.Auth.Copilot)
+		if err == nil {
+			return token
+		}
+	}
+	return fallbackToken
+}
+
+// ghAuthToken gets a token from gh CLI, optionally for a specific user.
+func ghAuthToken(user string) (string, error) {
+	args := []string{"auth", "token"}
+	if user != "" {
+		args = append(args, "--user", user)
+	}
+	cmd := exec.Command("gh", args...)
 	output, err := cmd.Output()
 	if err != nil {
+		if user != "" {
+			return "", fmt.Errorf("failed to get token for %q via 'gh auth token --user %s': %w\nRun 'gh auth login' to authenticate this account", user, user, err)
+		}
 		return "", fmt.Errorf("GITHUB_TOKEN not set and 'gh auth token' failed: %w\nSet GITHUB_TOKEN or run 'gh auth login'", err)
 	}
-
-	token = strings.TrimSpace(string(output))
+	token := strings.TrimSpace(string(output))
 	if token == "" {
-		return "", fmt.Errorf("GITHUB_TOKEN not set and 'gh auth token' returned empty\nRun 'gh auth login' to authenticate")
+		return "", fmt.Errorf("'gh auth token' returned empty token")
 	}
-
 	return token, nil
+}
+
+// listGHAccounts returns the list of GitHub accounts configured in gh CLI.
+func listGHAccounts() ([]string, error) {
+	// Parse gh auth status output to extract account names
+	cmd := exec.Command("gh", "auth", "status")
+	output, _ := cmd.CombinedOutput() // exits non-zero sometimes, but still prints accounts
+
+	var accounts []string
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "✓ Logged in to") && strings.Contains(line, "account") {
+			// "✓ Logged in to github.com account chaz8081 (keyring)"
+			parts := strings.Fields(line)
+			for i, p := range parts {
+				if p == "account" && i+1 < len(parts) {
+					accounts = append(accounts, parts[i+1])
+				}
+			}
+		}
+	}
+	return accounts, nil
 }
