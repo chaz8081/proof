@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/chaz8081/proof/internal/config"
+	"github.com/chaz8081/proof/internal/review"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +18,8 @@ var configCmd = &cobra.Command{
 	Short: "Show or manage configuration",
 	Example: `  proof config show        # display current config
   proof config init        # create config (alias for 'proof setup')
-  proof config validate    # check config for issues`,
+  proof config validate    # check config for issues
+  proof config models      # list available AI models`,
 	// No RunE — shows help with subcommand list by default.
 }
 
@@ -25,7 +27,40 @@ func init() {
 	cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")
 	configCmd.AddCommand(newConfigInitCmd(cfgPath))
 	configCmd.AddCommand(newConfigShowCmd(cfgPath))
+	configCmd.AddCommand(newConfigModelsCmd())
 	rootCmd.AddCommand(configCmd)
+}
+
+func newConfigModelsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "models",
+		Short:   "List available AI models",
+		Example: "  proof config models",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, _ := config.Load()
+			copilotToken := resolveCopilotToken(cfg, "")
+
+			models, err := review.ListModels(cmd.Context(), copilotToken)
+			if err != nil {
+				return err
+			}
+
+			if len(models) == 0 {
+				cmd.Println("No models available.")
+				return nil
+			}
+
+			cmd.Println("Available models:")
+			for _, m := range models {
+				name := m.Name
+				if name == "" {
+					name = m.ID
+				}
+				cmd.Printf("  %-30s %s\n", m.ID, name)
+			}
+			return nil
+		},
+	}
 }
 
 func newConfigShowCmd(cfgPath string) *cobra.Command {

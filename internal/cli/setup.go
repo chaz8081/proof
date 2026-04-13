@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/chaz8081/proof/internal/config"
+	"github.com/chaz8081/proof/internal/review"
 	"github.com/spf13/cobra"
 )
 
@@ -92,12 +93,37 @@ var setupCmd = &cobra.Command{
 			verdict = "COMMENT"
 		}
 
-		// Model
-		cmd.Print("\n? AI model [gpt-4.1]: ")
-		modelInput, _ := reader.ReadString('\n')
-		model := strings.TrimSpace(modelInput)
-		if model == "" {
-			model = "gpt-4.1"
+		// Model selection
+		model := "gpt-4.1" // default
+		copilotToken := ""
+		if copilotAccount != "" {
+			t, _ := ghAuthToken(copilotAccount)
+			copilotToken = t
+		} else if len(accounts) > 0 {
+			t, _ := ghAuthToken(accounts[0])
+			copilotToken = t
+		}
+
+		models, err := review.ListModels(cmd.Context(), copilotToken)
+		if err == nil && len(models) > 0 {
+			cmd.Println("\nAvailable AI models:")
+			for i, m := range models {
+				name := m.Name
+				if name == "" {
+					name = m.ID
+				}
+				cmd.Printf("  %d. %s\n", i+1, name)
+			}
+			cmd.Printf("\n? Select a model [1]: ")
+			modelInput, _ := reader.ReadString('\n')
+			modelIdx := parseIndex(modelInput, len(models))
+			model = models[modelIdx].ID
+		} else {
+			cmd.Print("\n? AI model [gpt-4.1]: ")
+			modelInput, _ := reader.ReadString('\n')
+			if m := strings.TrimSpace(modelInput); m != "" {
+				model = m
+			}
 		}
 
 		// Include own

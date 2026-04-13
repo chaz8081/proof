@@ -24,6 +24,29 @@ func init() {
 		}
 		return r, func() { r.Stop() }, nil
 	}
+
+	ListModels = func(ctx context.Context, copilotToken string) ([]ModelSummary, error) {
+		opts := &copilot.ClientOptions{LogLevel: "error"}
+		if copilotToken != "" {
+			opts.GitHubToken = copilotToken
+		}
+		client := copilot.NewClient(opts)
+		if err := client.Start(ctx); err != nil {
+			return nil, fmt.Errorf("starting copilot: %w", err)
+		}
+		defer client.Stop()
+
+		models, err := client.ListModels(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("listing models: %w", err)
+		}
+
+		var result []ModelSummary
+		for _, m := range models {
+			result = append(result, ModelSummary{ID: m.ID, Name: m.Name})
+		}
+		return result, nil
+	}
 }
 
 // CopilotReviewer implements Reviewer using the GitHub Copilot SDK.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/chaz8081/proof/internal/config"
@@ -201,6 +202,9 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		spin.stop()
 	}
 	if err != nil {
+		if strings.Contains(err.Error(), "not available") {
+			return fmt.Errorf("AI review failed: %w\nRun 'proof config models' to see available models", err)
+		}
 		return fmt.Errorf("AI review failed: %w", err)
 	}
 

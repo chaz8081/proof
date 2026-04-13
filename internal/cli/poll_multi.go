@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/chaz8081/proof/internal/config"
@@ -423,6 +424,9 @@ func reviewPR(
 		spin.stop()
 	}
 	if err != nil {
+		if strings.Contains(err.Error(), "not available") {
+			return nil, fmt.Errorf("error during AI review: %v\nRun 'proof config models' to see available models", err)
+		}
 		return nil, fmt.Errorf("error during AI review: %v", err)
 	}
 
