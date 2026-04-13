@@ -9,21 +9,25 @@ creates pending reviews for you to curate in GitHub's UI, then lets you submit w
 
 ### From Release (recommended)
 
+**Supported platforms:** macOS (arm64, amd64), Linux (amd64, arm64)
+
 Download the latest binary from [Releases](https://github.com/chaz8081/proof/releases):
 
 ```bash
 # macOS (Apple Silicon)
-curl -sL https://github.com/chaz8081/proof/releases/latest/download/proof_darwin_arm64.tar.gz | tar xz
+curl -sL $(gh release view --repo chaz8081/proof --json assets -q '.assets[] | select(.name | contains("darwin_arm64")) | .url') | tar xz
 sudo mv proof /usr/local/bin/
 
 # macOS (Intel)
-curl -sL https://github.com/chaz8081/proof/releases/latest/download/proof_darwin_amd64.tar.gz | tar xz
+curl -sL $(gh release view --repo chaz8081/proof --json assets -q '.assets[] | select(.name | contains("darwin_amd64")) | .url') | tar xz
 sudo mv proof /usr/local/bin/
 
 # Linux (amd64)
-curl -sL https://github.com/chaz8081/proof/releases/latest/download/proof_linux_amd64.tar.gz | tar xz
+curl -sL $(gh release view --repo chaz8081/proof --json assets -q '.assets[] | select(.name | contains("linux_amd64")) | .url') | tar xz
 sudo mv proof /usr/local/bin/
 ```
+
+Or download directly from https://github.com/chaz8081/proof/releases/latest
 
 ### From Source
 
@@ -34,12 +38,11 @@ go install -tags=copilot github.com/chaz8081/proof/cmd/proof@latest
 ## Setup
 
 ```bash
-# Initialize config
-proof config init
+# Guided setup wizard (recommended)
+proof setup
 
-# Edit ~/.proof/config.yaml to add your repos
-# Set your GitHub token
-export GITHUB_TOKEN=$(gh auth token)
+# Or create a default config manually
+proof config init
 ```
 
 ## Usage
@@ -75,6 +78,31 @@ proof dismiss owner/repo#123
 
 # Force re-review (delete existing + create fresh)
 proof poll owner/repo#123 --re-review
+
+# Curate a pending review in the terminal (keep/delete/skip each comment)
+proof curate owner/repo#123
+
+# Review history
+proof log
+proof log --pr owner/repo#42 --since 7d
+proof log -o json
+
+# Review metrics
+proof stats
+proof stats --since 30d
+
+# Compare two reviews of the same PR
+proof diff owner/repo#42
+
+# Review with a profile
+proof poll --profile quick           # bugs/blockers only
+proof poll --profile thorough        # comprehensive review
+
+# Include your own PRs
+proof poll --include-own
+
+# Batch mode (skip interactive selection)
+proof poll --batch
 ```
 
 ## How It Works
