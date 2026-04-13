@@ -4,6 +4,11 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.4.2] — 2026-04-12
+
+### Added
+- **`--exclude-own` flag** — overrides `poll.include_own` config to skip your own PRs for a single run
+
 ## [1.4.1] — 2026-04-12
 
 ### Changed
