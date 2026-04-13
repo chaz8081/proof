@@ -4,6 +4,21 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-04-12
+
+### Changed
+- **Auth uses gh account names instead of stored tokens** — config now stores `auth.reviewer` and `auth.copilot` as account names (e.g., `chaz8080`), resolved at runtime via `gh auth token --user <name>`. No secrets in config files.
+- **Setup wizard detects gh accounts** — lists available accounts and lets you pick which is for Copilot vs reviews. Single-account users need no auth config at all.
+- **Version command uses debug.BuildInfo** — `proof version` now shows correct version when installed via `go install` (no longer requires ldflags)
+
+### Fixed
+- `proof log -o json` returns `[]` when empty (was returning nothing)
+- `proof stats` now has `-o json` flag for scripting consistency
+- Error messages for nonexistent PRs show "PR not found" instead of raw API 404 text
+- Consistent lowercase error message capitalization across commands
+- README install URLs use `gh release view` pattern instead of hardcoded filenames
+- README documents all commands including curate, log, stats, diff, profiles
+
 ## [1.4.0] — 2026-04-12
 
 ### Added
