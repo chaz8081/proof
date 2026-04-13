@@ -32,8 +32,13 @@ Or download directly from https://github.com/chaz8081/proof/releases/latest
 ### From Source
 
 ```bash
-go install -tags=copilot github.com/chaz8081/proof/cmd/proof@latest
+git clone https://github.com/chaz8081/proof.git
+cd proof
+make install
 ```
+
+> **Note:** `go install @latest` does NOT include Copilot SDK support due to a Go toolchain
+> limitation with build tags. Use `make install` or download a pre-built release instead.
 
 ## Setup
 
