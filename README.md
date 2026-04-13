@@ -3,7 +3,14 @@
 > Let it rise before you bake it in.
 
 AI-assisted PR review with human-in-the-loop. Proof pre-reviews GitHub PRs using AI,
-creates pending reviews for you to curate in GitHub's UI, then lets you submit when ready.
+creates pending reviews for you to curate, then directs you to GitHub to submit when ready.
+
+## Philosophy
+
+Proof is a **review preparation** tool, not a review publishing tool. The CLI creates
+pending reviews visible only to you. To submit a review, you must visit GitHub's UI
+and explicitly approve, request changes, or comment. This ensures every published
+review has a human behind it — the AI assists, you decide.
 
 ## Install
 
@@ -66,14 +73,9 @@ proof poll --dry-run
 proof list
 proof list -o json              # machine-readable output
 
-# Preview a pending review before submitting
+# Preview a pending review
 proof show owner/repo#123
 proof show owner/repo#123 -o json
-
-# Submit a pending review
-proof submit owner/repo#123
-proof submit owner/repo#123 --approve
-proof submit owner/repo#123 --request-changes
 
 # Delete a pending review
 proof dismiss owner/repo#123
@@ -109,11 +111,9 @@ proof poll --batch
 
 ## How It Works
 
-1. `proof poll` finds PRs where you're a requested reviewer
-2. Each PR's diff is analyzed by AI (via GitHub Copilot SDK)
-3. A **pending review** is created on GitHub — visible only to you
-4. You curate the review in GitHub's UI (edit, delete, add comments)
-5. `proof submit` publishes the review, or submit directly in GitHub
+1. `proof poll` finds PRs and generates AI reviews as **pending drafts**
+2. You curate the review — edit, delete, or keep comments
+3. Visit GitHub to review the pending comments and submit when ready
 
 ## Configuration
 
@@ -409,7 +409,7 @@ The Copilot SDK integration requires a build tag:
 # With Copilot SDK (full functionality)
 go build -tags=copilot -o proof ./cmd/proof
 
-# Without Copilot SDK (poll --dry-run, list, submit still work)
+# Without Copilot SDK (poll --dry-run, list still work)
 go build -o proof ./cmd/proof
 
 # Build with version info

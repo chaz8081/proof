@@ -120,9 +120,9 @@ func init() {
 			}
 
 			cmd.Printf("---\nActions:\n")
-			cmd.Printf("  proof submit %s/%s#%d --approve\n", owner, repo, number)
-			cmd.Printf("  proof submit %s/%s#%d --request-changes\n", owner, repo, number)
-			cmd.Printf("  proof dismiss %s/%s#%d\n", owner, repo, number)
+			cmd.Printf("  proof curate %s/%s#%d      # edit comments in terminal\n", owner, repo, number)
+			cmd.Printf("  proof dismiss %s/%s#%d     # delete this review\n", owner, repo, number)
+			cmd.Printf("  Submit on GitHub: https://github.com/%s/%s/pull/%d\n", owner, repo, number)
 
 			return nil
 		},

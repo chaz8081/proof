@@ -18,7 +18,7 @@ func init() {
 	curateCmd := &cobra.Command{
 		Use:   "curate <owner/repo#number>",
 		Short: "Review and manage pending comments in the terminal",
-		Long:  "Interactive terminal-based curation of pending review comments. Keep, delete, or skip each comment, then submit.",
+		Long:  "Interactive terminal-based curation of pending review comments. Keep, delete, or skip each comment. Visit GitHub to submit when ready.",
 		Example: `  proof curate owner/repo#123
   proof curate https://github.com/owner/repo/pull/123`,
 		Args: cobra.ExactArgs(1),
@@ -97,38 +97,18 @@ func init() {
 				cmd.Println()
 			}
 
-			cmd.Printf("Kept: %d, Deleted: %d, Skipped: %d\n\n", kept, deleted, skipped)
+			cmd.Printf("\nKept: %d, Deleted: %d, Skipped: %d\n", kept, deleted, skipped)
+			cmd.Printf("\nReview curated. Visit GitHub to submit:\n")
+			cmd.Printf("  https://github.com/%s/%s/pull/%d\n", owner, repo, number)
 
-			// Prompt for verdict and submit
-			cmd.Print("Submit review? (COMMENT/APPROVE/REQUEST_CHANGES/cancel) [COMMENT]: ")
-			verdictInput, _ := reader.ReadString('\n')
-			verdictInput = strings.TrimSpace(strings.ToUpper(verdictInput))
-
-			if verdictInput == "CANCEL" || verdictInput == "C" {
-				cmd.Println("Review not submitted. Comments are still pending on GitHub.")
-				return nil
-			}
-
-			if verdictInput == "" {
-				verdictInput = "COMMENT"
-			}
-
-			if err := validateVerdict(verdictInput); err != nil {
-				return err
-			}
-
-			if err := ghClient.SubmitReview(ctx, owner, repo, number, rev.ID, verdictInput); err != nil {
-				return fmt.Errorf("submitting review: %w", err)
-			}
-
-			// Learning: track curation delta
+			// Learning: track curation delta based on what was kept vs deleted
 			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
 			stored, _ := pendingStore.List()
 			for _, rec := range stored {
 				if rec.Owner == owner && rec.Repo == repo && rec.Number == number && rec.OriginalResult != nil {
 					// Count surviving comments (original minus deleted during curation)
 					survivingComments := len(comments) - deleted
-					delta := computeDelta(rec.OriginalResult, survivingComments, verdictInput)
+					delta := computeDelta(rec.OriginalResult, survivingComments, "")
 					delta.Owner = owner
 					delta.Repo = repo
 					delta.Number = number
@@ -139,10 +119,6 @@ func init() {
 				}
 			}
 
-			// Clean up store
-			pendingStore.Remove(owner, repo, number)
-
-			cmd.Printf("✓ Review submitted on %s/%s#%d as %s\n", owner, repo, number, verdictInput)
 			return nil
 		},
 	}

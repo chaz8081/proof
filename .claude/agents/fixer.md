@@ -55,7 +55,7 @@ This is **Proof** — a Go CLI tool for AI-assisted PR review.
 - `internal/config` — YAML config loading
 - `internal/github` — GitHub API client
 - `internal/review` — AI reviewer interface
-- `internal/cli` — Cobra commands (poll, list, submit, config)
+- `internal/cli` — Cobra commands (poll, list, show, curate, dismiss, config)
 
 ## Issue Tracking
 
