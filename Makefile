@@ -21,7 +21,7 @@ install: build
 install-local: build
 	mkdir -p $(GOBIN)
 	mv $(BINARY) $(GOBIN)/$(BINARY)
-	@echo "✓ proof $(VERSION) installed to ~$(GOBIN)/proof"
+	@echo "✓ proof $(VERSION) installed to $(GOBIN)/$(BINARY)"
 
 ## test: Run all tests
 test:
