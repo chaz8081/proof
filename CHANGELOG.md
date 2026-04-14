@@ -4,7 +4,15 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
-## [1.5.0] — 2026-04-12
+## [1.5.0] — 2026-04-13
+
+### Added
+- **Token and premium request tracking** — each review records input/output tokens, cache read tokens, and premium request count in `reviews.jsonl`
+- **Usage stats in `proof stats`** — shows total premium requests, tokens consumed, and averages per review
+- **Usage info in `proof log`** — each entry shows token counts and premium requests
+- **Per-review session isolation** — fresh Copilot session per review prevents cross-PR failures
+- **Auto-retry on timeout** — retries once automatically before giving up
+- **Actionable timeout errors** — shows model name, file count, diff size, and suggests `--model` or retry
 
 ### Removed
 - **`proof submit` command** — reviews must be submitted through GitHub's UI to maintain human-in-the-loop accountability. The CLI is a review preparation tool, not a publishing tool.
