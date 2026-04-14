@@ -111,8 +111,25 @@ func (r *CopilotReviewer) Stop() {
 }
 
 // Review sends the PR context to Copilot for analysis and returns a structured review.
+// Creates a fresh session per review and retries once on timeout.
 func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResult, error) {
-	session, err := r.client.CreateSession(ctx, &copilot.SessionConfig{
+	result, err := r.reviewOnce(ctx, pr)
+	if err != nil && isTimeout(err) {
+		// Retry once on timeout — transient SDK hangs are common
+		result, err = r.reviewOnce(ctx, pr)
+		if err != nil {
+			return nil, fmt.Errorf("review failed after retry: %w", err)
+		}
+	}
+	return result, err
+}
+
+func (r *CopilotReviewer) reviewOnce(ctx context.Context, pr PRContext) (*ReviewResult, error) {
+	// Fresh session per review — isolates failures
+	sessionCtx, sessionCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer sessionCancel()
+
+	session, err := r.client.CreateSession(sessionCtx, &copilot.SessionConfig{
 		Model: pr.Model,
 		SystemMessage: &copilot.SystemMessageConfig{
 			Mode:    "replace",
@@ -121,24 +138,40 @@ func (r *CopilotReviewer) Review(ctx context.Context, pr PRContext) (*ReviewResu
 		OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
 	})
 	if err != nil {
+		if isTimeout(err) {
+			return nil, fmt.Errorf("timed out creating Copilot session (model: %s) — the Copilot service may be slow or unavailable. Try again or use a different model with --model", pr.Model)
+		}
 		return nil, fmt.Errorf("creating copilot session: %w", err)
 	}
 	defer session.Disconnect()
 
 	prompt := buildReviewPrompt(pr)
 
-	// Give the model up to 3 minutes for large diffs
-	sendCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-	defer cancel()
+	// Give the model up to 3 minutes for the actual review
+	sendCtx, sendCancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer sendCancel()
 
 	event, err := session.SendAndWait(sendCtx, copilot.MessageOptions{Prompt: prompt})
 	if err != nil {
+		if isTimeout(err) {
+			return nil, fmt.Errorf("timed out waiting for AI review (model: %s, %d files, %d bytes diff) — try a faster model with --model or reduce diff size", pr.Model, len(pr.Files), len(pr.Diff))
+		}
 		return nil, fmt.Errorf("copilot review request: %w", err)
 	}
 
 	if event == nil || event.Data.Content == nil {
-		return nil, fmt.Errorf("copilot returned empty response")
+		return nil, fmt.Errorf("copilot returned empty response for %s/%s#%d — try again or use a different model", pr.Owner, pr.Repo, pr.Number)
 	}
 
 	return parseReviewJSON(*event.Data.Content)
+}
+
+func isTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "context deadline exceeded") ||
+		strings.Contains(msg, "context canceled") ||
+		strings.Contains(msg, "timeout")
 }
