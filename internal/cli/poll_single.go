@@ -208,7 +208,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 		return fmt.Errorf("AI review failed: %w", err)
 	}
 
-	reviewID, err := ghClient.CreatePendingReview(ctx, owner, repo, number, result, prCtx.Diff)
+	reviewID, err := ghClient.CreatePendingReview(ctx, owner, repo, number, result, prCtx.Diff, prCtx.Model)
 	if err != nil {
 		return fmt.Errorf("creating review: %w", err)
 	}

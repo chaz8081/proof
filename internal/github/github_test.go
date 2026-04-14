@@ -230,7 +230,7 @@ func TestCreatePendingReview(t *testing.T) {
 		},
 	}
 
-	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result, "")
+	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result, "", "gpt-4.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -768,7 +768,7 @@ func TestCreatePendingReview_DropsInvalidLines(t *testing.T) {
 		},
 	}
 
-	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result, diff)
+	reviewID, err := client.CreatePendingReview(context.Background(), "owner", "repo", 1, result, diff, "gpt-4.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

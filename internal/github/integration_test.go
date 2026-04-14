@@ -125,7 +125,7 @@ func TestFullReviewWorkflow(t *testing.T) {
 	}
 
 	// Step 5: Create pending review
-	reviewID, err := client.CreatePendingReview(context.Background(), "test", "repo", 42, result, prCtx.Diff)
+	reviewID, err := client.CreatePendingReview(context.Background(), "test", "repo", 42, result, prCtx.Diff, "gpt-4.1")
 	if err != nil {
 		t.Fatalf("CreatePendingReview: %v", err)
 	}

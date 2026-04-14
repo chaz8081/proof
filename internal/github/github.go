@@ -352,7 +352,7 @@ func filterValidComments(comments []review.InlineComment, validLines map[string]
 // The review is only visible to the authenticated user until submitted.
 // diff is the unified diff for the PR; comments with line numbers outside the
 // diff hunks are filtered out and noted in the review body to avoid 422 errors.
-func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, number int, result *review.ReviewResult, diff string) (int64, error) {
+func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, number int, result *review.ReviewResult, diff string, model string) (int64, error) {
 	// Filter out comments whose line numbers fall outside the diff.
 	validLines := parseDiffLines(diff)
 	validComments, droppedComments := filterValidComments(result.Comments, validLines)
@@ -361,6 +361,7 @@ func (c *Client) CreatePendingReview(ctx context.Context, owner, repo string, nu
 	if len(droppedComments) > 0 {
 		body += fmt.Sprintf("\n\n_Note: %d comment(s) were dropped because their line numbers fall outside the diff._", len(droppedComments))
 	}
+	body += review.AIReviewFooter(model)
 
 	var comments []*gh.DraftReviewComment
 	for _, comment := range validComments {

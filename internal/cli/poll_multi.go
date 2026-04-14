@@ -430,7 +430,7 @@ func reviewPR(
 		return nil, fmt.Errorf("error during AI review: %v", err)
 	}
 
-	reviewID, err := ghClient.CreatePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, result, prCtx.Diff)
+	reviewID, err := ghClient.CreatePendingReview(ctx, pr.Owner, pr.Repo, pr.Number, result, prCtx.Diff, prCtx.Model)
 	if err != nil {
 		return nil, fmt.Errorf("error creating review: %v", err)
 	}
