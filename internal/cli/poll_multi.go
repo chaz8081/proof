@@ -438,19 +438,23 @@ func reviewPR(
 	// Record review in history
 	historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
 	_ = historyStore.Append(proofstore.ReviewRecord{
-		Timestamp:    time.Now(),
-		Owner:        pr.Owner,
-		Repo:         pr.Repo,
-		Number:       pr.Number,
-		Title:        prCtx.Title,
-		Author:       pr.Author,
-		Verdict:      result.Verdict,
-		CommentCount: len(result.Comments),
-		FileCount:    len(prCtx.Files),
-		DiffBytes:    len(prCtx.Diff),
-		Model:        prCtx.Model,
-		ReviewID:     reviewID,
-		Duration:     duration.Seconds(),
+		Timestamp:       time.Now(),
+		Owner:           pr.Owner,
+		Repo:            pr.Repo,
+		Number:          pr.Number,
+		Title:           prCtx.Title,
+		Author:          pr.Author,
+		Verdict:         result.Verdict,
+		CommentCount:    len(result.Comments),
+		FileCount:       len(prCtx.Files),
+		DiffBytes:       len(prCtx.Diff),
+		Model:           prCtx.Model,
+		ReviewID:        reviewID,
+		Duration:        duration.Seconds(),
+		InputTokens:     result.Usage.InputTokens,
+		OutputTokens:    result.Usage.OutputTokens,
+		CacheReadTokens: result.Usage.CacheReadTokens,
+		PremiumRequests: result.Usage.PremiumRequests,
 	})
 
 	if err := pendingStore.Add(proofstore.PendingRecord{

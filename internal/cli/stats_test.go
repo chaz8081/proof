@@ -5,6 +5,29 @@ import (
 	"time"
 )
 
+func TestFormatTokens(t *testing.T) {
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{0, "0"},
+		{500, "500"},
+		{999, "999"},
+		{1000, "1.0k"},
+		{1500, "1.5k"},
+		{999999, "1000.0k"},
+		{1000000, "1.0M"},
+		{1500000, "1.5M"},
+		{2300000, "2.3M"},
+	}
+	for _, tt := range tests {
+		got := formatTokens(tt.n)
+		if got != tt.want {
+			t.Errorf("formatTokens(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
 func TestParseDuration(t *testing.T) {
 	tests := []struct {
 		name    string

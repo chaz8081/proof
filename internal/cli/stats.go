@@ -13,12 +13,15 @@ import (
 )
 
 type statsOutput struct {
-	TotalReviews int            `json:"total_reviews"`
-	AvgComments  float64        `json:"avg_comments_per_pr"`
-	AvgDuration  float64        `json:"avg_duration_seconds"`
-	Verdicts     map[string]int `json:"verdicts"`
-	ByRepo       map[string]int `json:"by_repo"`
-	ByModel      map[string]int `json:"by_model"`
+	TotalReviews        int            `json:"total_reviews"`
+	AvgComments         float64        `json:"avg_comments_per_pr"`
+	AvgDuration         float64        `json:"avg_duration_seconds"`
+	Verdicts            map[string]int `json:"verdicts"`
+	ByRepo              map[string]int `json:"by_repo"`
+	ByModel             map[string]int `json:"by_model"`
+	TotalInputTokens    int            `json:"total_input_tokens,omitempty"`
+	TotalOutputTokens   int            `json:"total_output_tokens,omitempty"`
+	TotalPremiumRequests int           `json:"total_premium_requests,omitempty"`
 }
 
 func init() {
@@ -68,6 +71,9 @@ func init() {
 			totalComments := 0
 			totalFiles := 0
 			totalDuration := 0.0
+			totalInputTokens := 0
+			totalOutputTokens := 0
+			totalPremiumRequests := 0
 			verdicts := make(map[string]int)
 			repos := make(map[string]int)
 			models := make(map[string]int)
@@ -76,6 +82,9 @@ func init() {
 				totalComments += r.CommentCount
 				totalFiles += r.FileCount
 				totalDuration += r.Duration
+				totalInputTokens += r.InputTokens
+				totalOutputTokens += r.OutputTokens
+				totalPremiumRequests += r.PremiumRequests
 				verdicts[r.Verdict]++
 				repos[fmt.Sprintf("%s/%s", r.Owner, r.Repo)]++
 				models[r.Model]++
@@ -87,12 +96,15 @@ func init() {
 			// JSON output
 			if outputFormat == "json" {
 				out := statsOutput{
-					TotalReviews: len(records),
-					AvgComments:  avgComments,
-					AvgDuration:  avgDuration,
-					Verdicts:     verdicts,
-					ByRepo:       repos,
-					ByModel:      models,
+					TotalReviews:         len(records),
+					AvgComments:          avgComments,
+					AvgDuration:          avgDuration,
+					Verdicts:             verdicts,
+					ByRepo:               repos,
+					ByModel:              models,
+					TotalInputTokens:     totalInputTokens,
+					TotalOutputTokens:    totalOutputTokens,
+					TotalPremiumRequests: totalPremiumRequests,
 				}
 				data, _ := json.MarshalIndent(out, "", "  ")
 				cmd.Println(string(data))
@@ -140,6 +152,15 @@ func init() {
 				cmd.Printf("  %-20s %d reviews\n", model, count)
 			}
 
+			// Usage (only shown when token data is available)
+			if totalInputTokens > 0 || totalPremiumRequests > 0 {
+				cmd.Println()
+				cmd.Println("Usage:")
+				cmd.Printf("  Premium requests:  %d (%.1f avg/review)\n", totalPremiumRequests, float64(totalPremiumRequests)/float64(len(records)))
+				cmd.Printf("  Tokens consumed:   %s in / %s out\n", formatTokens(totalInputTokens), formatTokens(totalOutputTokens))
+				cmd.Printf("  Avg tokens/PR:     %s in / %s out\n", formatTokens(totalInputTokens/len(records)), formatTokens(totalOutputTokens/len(records)))
+			}
+
 			return nil
 		},
 	}
@@ -147,6 +168,17 @@ func init() {
 	statsCmd.Flags().StringVar(&since, "since", "", "Time window (e.g., 7d, 30d, 24h)")
 	statsCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json)")
 	rootCmd.AddCommand(statsCmd)
+}
+
+// formatTokens formats a token count as a human-readable string (e.g., "1.5k", "2.3M").
+func formatTokens(n int) string {
+	if n >= 1_000_000 {
+		return fmt.Sprintf("%.1fM", float64(n)/1_000_000)
+	}
+	if n >= 1000 {
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
+	return fmt.Sprintf("%d", n)
 }
 
 // parseDuration parses durations like "7d", "30d", "24h", "1h"

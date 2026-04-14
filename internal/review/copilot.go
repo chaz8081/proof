@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -147,23 +148,78 @@ func (r *CopilotReviewer) reviewOnce(ctx context.Context, pr PRContext) (*Review
 
 	prompt := buildReviewPrompt(pr)
 
+	// Track response and usage via event handler
+	var response string
+	var usage ReviewUsage
+	done := make(chan struct{})
+	var reviewErr error
+	var doneOnce sync.Once
+
+	unsubscribe := session.On(func(event copilot.SessionEvent) {
+		switch event.Type {
+		case copilot.SessionEventTypeAssistantMessage:
+			if event.Data.Content != nil {
+				response = *event.Data.Content
+			}
+		case copilot.SessionEventTypeAssistantUsage:
+			if event.Data.InputTokens != nil {
+				usage.InputTokens = int(*event.Data.InputTokens)
+			}
+			if event.Data.OutputTokens != nil {
+				usage.OutputTokens = int(*event.Data.OutputTokens)
+			}
+			if event.Data.CacheReadTokens != nil {
+				usage.CacheReadTokens = int(*event.Data.CacheReadTokens)
+			}
+		case copilot.SessionEventTypeSessionIdle:
+			doneOnce.Do(func() { close(done) })
+		case copilot.SessionEventTypeSessionError:
+			errMsg := "session error"
+			if event.Data.Message != nil {
+				errMsg = *event.Data.Message
+			}
+			reviewErr = fmt.Errorf("%s", errMsg)
+			doneOnce.Do(func() { close(done) })
+		}
+	})
+	defer unsubscribe()
+
 	// Give the model up to 3 minutes for the actual review
 	sendCtx, sendCancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer sendCancel()
 
-	event, err := session.SendAndWait(sendCtx, copilot.MessageOptions{Prompt: prompt})
-	if err != nil {
+	if _, err := session.Send(sendCtx, copilot.MessageOptions{Prompt: prompt}); err != nil {
 		if isTimeout(err) {
 			return nil, fmt.Errorf("timed out waiting for AI review (model: %s, %d files, %d bytes diff) — try a faster model with --model or reduce diff size", pr.Model, len(pr.Files), len(pr.Diff))
 		}
 		return nil, fmt.Errorf("copilot review request: %w", err)
 	}
 
-	if event == nil || event.Data.Content == nil {
+	// Wait for idle or error
+	select {
+	case <-done:
+	case <-sendCtx.Done():
+		return nil, fmt.Errorf("timed out waiting for AI review (model: %s, %d files, %d bytes diff) — try a faster model with --model or reduce diff size", pr.Model, len(pr.Files), len(pr.Diff))
+	}
+
+	if reviewErr != nil {
+		return nil, reviewErr
+	}
+
+	if response == "" {
 		return nil, fmt.Errorf("copilot returned empty response for %s/%s#%d — try again or use a different model", pr.Owner, pr.Repo, pr.Number)
 	}
 
-	return parseReviewJSON(*event.Data.Content)
+	result, err := parseReviewJSON(response)
+	if err != nil {
+		return nil, err
+	}
+
+	// Attach usage data; count each review call as 1 premium request
+	result.Usage = usage
+	result.Usage.PremiumRequests = 1
+
+	return result, nil
 }
 
 func isTimeout(err error) bool {

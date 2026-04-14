@@ -11,19 +11,23 @@ import (
 
 // ReviewRecord captures the outcome of a single AI review run for history and analytics.
 type ReviewRecord struct {
-	Timestamp    time.Time `json:"timestamp"`
-	Owner        string    `json:"owner"`
-	Repo         string    `json:"repo"`
-	Number       int       `json:"number"`
-	Title        string    `json:"title"`
-	Author       string    `json:"author"`
-	Verdict      string    `json:"verdict"`
-	CommentCount int       `json:"comment_count"`
-	FileCount    int       `json:"file_count"`
-	DiffBytes    int       `json:"diff_bytes"`
-	Model        string    `json:"model"`
-	ReviewID     int64     `json:"review_id"`
-	Duration     float64   `json:"duration_seconds"`
+	Timestamp       time.Time `json:"timestamp"`
+	Owner           string    `json:"owner"`
+	Repo            string    `json:"repo"`
+	Number          int       `json:"number"`
+	Title           string    `json:"title"`
+	Author          string    `json:"author"`
+	Verdict         string    `json:"verdict"`
+	CommentCount    int       `json:"comment_count"`
+	FileCount       int       `json:"file_count"`
+	DiffBytes       int       `json:"diff_bytes"`
+	Model           string    `json:"model"`
+	ReviewID        int64     `json:"review_id"`
+	Duration        float64   `json:"duration_seconds"`
+	InputTokens     int       `json:"input_tokens,omitempty"`
+	OutputTokens    int       `json:"output_tokens,omitempty"`
+	CacheReadTokens int       `json:"cache_read_tokens,omitempty"`
+	PremiumRequests int       `json:"premium_requests,omitempty"`
 }
 
 // HistoryStore manages the append-only review history log.

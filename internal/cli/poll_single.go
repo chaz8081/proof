@@ -216,18 +216,22 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	// Record review in history
 	historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
 	_ = historyStore.Append(proofstore.ReviewRecord{
-		Timestamp:    time.Now(),
-		Owner:        owner,
-		Repo:         repo,
-		Number:       number,
-		Title:        prCtx.Title,
-		Verdict:      result.Verdict,
-		CommentCount: len(result.Comments),
-		FileCount:    len(prCtx.Files),
-		DiffBytes:    len(prCtx.Diff),
-		Model:        prCtx.Model,
-		ReviewID:     reviewID,
-		Duration:     duration.Seconds(),
+		Timestamp:       time.Now(),
+		Owner:           owner,
+		Repo:            repo,
+		Number:          number,
+		Title:           prCtx.Title,
+		Verdict:         result.Verdict,
+		CommentCount:    len(result.Comments),
+		FileCount:       len(prCtx.Files),
+		DiffBytes:       len(prCtx.Diff),
+		Model:           prCtx.Model,
+		ReviewID:        reviewID,
+		Duration:        duration.Seconds(),
+		InputTokens:     result.Usage.InputTokens,
+		OutputTokens:    result.Usage.OutputTokens,
+		CacheReadTokens: result.Usage.CacheReadTokens,
+		PremiumRequests: result.Usage.PremiumRequests,
 	})
 
 	pendingStore.Add(proofstore.PendingRecord{

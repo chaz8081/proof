@@ -97,7 +97,11 @@ func init() {
 			cmd.Printf("Review History (%d total)\n\n", len(records))
 			for _, r := range records {
 				cmd.Printf("  %s  %s/%s#%d — %s\n", r.Timestamp.Format("2006-01-02 15:04"), r.Owner, r.Repo, r.Number, r.Verdict)
-				cmd.Printf("           %d comments, %d files, %.1fs (%s)\n\n", r.CommentCount, r.FileCount, r.Duration, r.Model)
+				cmd.Printf("           %d comments, %d files, %.1fs (%s)\n", r.CommentCount, r.FileCount, r.Duration, r.Model)
+				if r.InputTokens > 0 {
+					cmd.Printf("           %s in / %s out tokens, %d premium req\n", formatTokens(r.InputTokens), formatTokens(r.OutputTokens), r.PremiumRequests)
+				}
+				cmd.Println()
 			}
 
 			return nil

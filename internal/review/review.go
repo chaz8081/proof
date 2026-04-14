@@ -32,10 +32,19 @@ type PRContext struct {
 	HeadSHA          string
 }
 
+// ReviewUsage holds token and premium request counts from the AI provider.
+type ReviewUsage struct {
+	InputTokens     int
+	OutputTokens    int
+	CacheReadTokens int
+	PremiumRequests int
+}
+
 type ReviewResult struct {
 	Summary  string          `json:"summary"`
 	Verdict  string          `json:"verdict"`
 	Comments []InlineComment `json:"comments"`
+	Usage    ReviewUsage     `json:"-"` // not from AI response, populated by reviewer
 }
 
 type InlineComment struct {
