@@ -25,11 +25,8 @@ var setupCmd = &cobra.Command{
 
 		// Check if config already exists
 		if _, err := os.Stat(cfgPath); err == nil {
-			fmt.Print("Config already exists at " + cfgPath + ". Overwrite? (y/N): ")
-			if !promptYesNo(os.Stdin, false) {
-				cmd.Println("Setup cancelled.")
-				return nil
-			}
+			cmd.Printf("Config already exists at %s.\nRun 'proof config edit' to update it.\n", cfgPath)
+			return nil
 		}
 
 		cmd.Println("Welcome to Proof! Let's get you configured.")

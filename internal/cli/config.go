@@ -17,6 +17,7 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Show or manage configuration",
 	Example: `  proof config show        # display current config
+  proof config edit        # interactively edit config
   proof config init        # create config (alias for 'proof setup')
   proof config validate    # check config for issues
   proof config models      # list available AI models`,
@@ -28,6 +29,7 @@ func init() {
 	configCmd.AddCommand(newConfigInitCmd(cfgPath))
 	configCmd.AddCommand(newConfigShowCmd(cfgPath))
 	configCmd.AddCommand(newConfigModelsCmd())
+	configCmd.AddCommand(newConfigEditCmd())
 	rootCmd.AddCommand(configCmd)
 }
 
