@@ -184,6 +184,7 @@ func init() {
 	}
 
 	listCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
+	listCmd.RegisterFlagCompletionFunc("output", completeOutputFormat)
 	rootCmd.AddCommand(listCmd)
 }
 

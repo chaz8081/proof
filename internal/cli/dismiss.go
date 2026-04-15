@@ -60,5 +60,6 @@ func init() {
 		},
 	}
 
+	dismissCmd.ValidArgsFunction = completePendingPRs
 	rootCmd.AddCommand(dismissCmd)
 }

@@ -167,6 +167,8 @@ func init() {
 
 	statsCmd.Flags().StringVar(&since, "since", "", "Time window (e.g., 7d, 30d, 24h)")
 	statsCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json)")
+	statsCmd.RegisterFlagCompletionFunc("since", completeSince)
+	statsCmd.RegisterFlagCompletionFunc("output", completeOutputFormat)
 	rootCmd.AddCommand(statsCmd)
 }
 

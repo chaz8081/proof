@@ -84,5 +84,6 @@ func init() {
 		},
 	}
 
+	diffCmd.ValidArgsFunction = completeHistoryPRs
 	rootCmd.AddCommand(diffCmd)
 }

@@ -129,5 +129,7 @@ func init() {
 	}
 
 	showCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
+	showCmd.RegisterFlagCompletionFunc("output", completeOutputFormat)
+	showCmd.ValidArgsFunction = completePendingPRs
 	rootCmd.AddCommand(showCmd)
 }

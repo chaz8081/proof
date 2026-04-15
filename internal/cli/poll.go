@@ -85,9 +85,9 @@ func init() {
 	// Dynamic completions
 	pollCmd.RegisterFlagCompletionFunc("model", completeModels)
 	pollCmd.RegisterFlagCompletionFunc("profile", completeProfiles)
-	pollCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{"json"}, cobra.ShellCompDirectiveNoFileComp
-	})
+	pollCmd.RegisterFlagCompletionFunc("output", completeOutputFormat)
+	pollCmd.RegisterFlagCompletionFunc("every", completeEvery)
+	pollCmd.ValidArgsFunction = completePendingPRs // for single-PR mode
 
 	rootCmd.AddCommand(pollCmd)
 }

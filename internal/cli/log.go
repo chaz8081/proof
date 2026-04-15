@@ -112,5 +112,8 @@ func init() {
 	logCmd.Flags().IntVar(&limit, "limit", 20, "Max records to show")
 	logCmd.Flags().StringVarP(&outputFormat, "output", "o", "", "Output format (json)")
 	logCmd.Flags().StringVar(&since, "since", "", "Time window (e.g., 7d, 30d, 24h)")
+	logCmd.RegisterFlagCompletionFunc("pr", completeHistoryPRs)
+	logCmd.RegisterFlagCompletionFunc("output", completeOutputFormat)
+	logCmd.RegisterFlagCompletionFunc("since", completeSince)
 	rootCmd.AddCommand(logCmd)
 }

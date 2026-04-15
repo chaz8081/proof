@@ -123,5 +123,6 @@ func init() {
 		},
 	}
 
+	curateCmd.ValidArgsFunction = completePendingPRs
 	rootCmd.AddCommand(curateCmd)
 }
