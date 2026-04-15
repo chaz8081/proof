@@ -4,6 +4,16 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-04-13
+
+### Added
+- **Comprehensive tab completion** — PR refs from pending store on `show`/`curate`/`dismiss`/`poll`, PR refs from history on `diff`/`log --pr`, time suggestions on `--since`/`--every`, `json` on all `--output` flags
+- **Complete README** — all commands, flags, and features now documented with examples
+
+### Fixed
+- Updated Mermaid flow diagram to reference `proof curate`
+- Updated agent definitions with complete command list
+
 ## [1.5.1] — 2026-04-13
 
 ### Added
