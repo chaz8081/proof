@@ -17,8 +17,8 @@ import (
 
 func newConfigEditCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "edit",
-		Short: "Interactively edit configuration",
+		Use:     "edit",
+		Short:   "Interactively edit configuration",
 		Example: `  proof config edit`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfgPath := filepath.Join(config.ConfigDir(), "config.yaml")

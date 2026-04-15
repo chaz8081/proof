@@ -4,6 +4,14 @@ All notable changes to Proof are documented here.
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-04-13
+
+### Added
+- **`proof config edit`** — interactive config editor that walks through each section, shows current values, and lets you change them with smart pickers (model list, repo search, account selection)
+- **Dynamic shell completion** — tab-completing `--model` queries Copilot SDK for available models, `--profile` shows built-in + custom profiles, `--output` shows `json`. Activate with `source <(proof completion zsh)`
+- **AI attribution tags** — every AI-generated review comment has a `🤖 AI-generated` prefix, every review body has a footer identifying Proof and the model used. Requires deliberate editing to remove.
+- **Repo search in config** — `proof config edit` offers add/remove/search for repos via `gh search repos`
+
 ## [1.5.0] — 2026-04-13
 
 ### Added

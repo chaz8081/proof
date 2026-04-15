@@ -13,15 +13,15 @@ import (
 )
 
 type statsOutput struct {
-	TotalReviews        int            `json:"total_reviews"`
-	AvgComments         float64        `json:"avg_comments_per_pr"`
-	AvgDuration         float64        `json:"avg_duration_seconds"`
-	Verdicts            map[string]int `json:"verdicts"`
-	ByRepo              map[string]int `json:"by_repo"`
-	ByModel             map[string]int `json:"by_model"`
-	TotalInputTokens    int            `json:"total_input_tokens,omitempty"`
-	TotalOutputTokens   int            `json:"total_output_tokens,omitempty"`
-	TotalPremiumRequests int           `json:"total_premium_requests,omitempty"`
+	TotalReviews         int            `json:"total_reviews"`
+	AvgComments          float64        `json:"avg_comments_per_pr"`
+	AvgDuration          float64        `json:"avg_duration_seconds"`
+	Verdicts             map[string]int `json:"verdicts"`
+	ByRepo               map[string]int `json:"by_repo"`
+	ByModel              map[string]int `json:"by_model"`
+	TotalInputTokens     int            `json:"total_input_tokens,omitempty"`
+	TotalOutputTokens    int            `json:"total_output_tokens,omitempty"`
+	TotalPremiumRequests int            `json:"total_premium_requests,omitempty"`
 }
 
 func init() {
