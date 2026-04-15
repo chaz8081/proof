@@ -81,6 +81,14 @@ func init() {
 	pollCmd.Flags().BoolVar(&batch, "batch", false, "Review all PRs without interactive selection")
 	pollCmd.Flags().StringVarP(&output, "output", "o", "", "Output format (json)")
 	pollCmd.Flags().StringVar(&profile, "profile", "", "Review profile (quick, thorough, or custom)")
+
+	// Dynamic completions
+	pollCmd.RegisterFlagCompletionFunc("model", completeModels)
+	pollCmd.RegisterFlagCompletionFunc("profile", completeProfiles)
+	pollCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"json"}, cobra.ShellCompDirectiveNoFileComp
+	})
+
 	rootCmd.AddCommand(pollCmd)
 }
 
