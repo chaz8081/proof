@@ -52,67 +52,150 @@ proof setup
 
 # Or create a default config manually
 proof config init
+
+# Enable tab completion (add to ~/.zshrc)
+source <(proof completion zsh)
 ```
 
 ## Usage
 
+### Setup & Configuration
+
 ```bash
+# Guided first-run setup wizard (recommended)
+proof setup
+
+# Config subcommands
+proof config show           # display current config
+proof config edit           # interactively edit config
+proof config init           # create config (alias for 'proof setup')
+proof config validate       # check config for issues
+proof config models         # list available AI models
+
+# Show config and review status at a glance
+proof status
+
+# Print version information
+proof version
+```
+
+### Review Workflow
+
+```bash
+# Interactive — scan all configured repos and pick which PRs to review
+proof poll
+
 # Review a specific PR directly
 proof poll owner/repo#123
 
-# Scan all configured repos for PRs needing review
-proof poll
+# Force fresh review on a PR that already has one
+proof poll owner/repo#123 --re-review
 
-# Watch mode — poll every 5 minutes
-proof poll --every 5m
-
-# List only — don't generate reviews yet
+# Preview without generating reviews (list PRs only)
 proof poll --dry-run
 
-# Show your pending reviews
+# Watch mode — re-scan every 5 minutes
+proof poll --every 5m --batch
+
+# Batch mode — review all matching PRs without interactive selection
+proof poll --batch
+
+# Include your own PRs (overrides config)
+proof poll --include-own
+
+# Exclude your own PRs (overrides config)
+proof poll --exclude-own
+
+# Use a specific AI model (overrides config)
+proof poll --model claude-haiku-4.5
+
+# Use a review profile
+proof poll --profile quick      # bugs/blockers only
+proof poll --profile thorough   # comprehensive review
+
+# JSON output (for scripting)
+proof poll -o json
+```
+
+### View & Manage Reviews
+
+```bash
+# Show all pending reviews
 proof list
-proof list -o json              # machine-readable output
+proof list -o json
 
 # Preview a pending review
 proof show owner/repo#123
 proof show owner/repo#123 -o json
 
-# Delete a pending review
+# Curate a pending review in the terminal (keep/edit/delete each comment)
+proof curate owner/repo#123
+proof curate https://github.com/owner/repo/pull/123
+
+# Delete a pending review from GitHub
 proof dismiss owner/repo#123
 
-# Force re-review (delete existing + create fresh)
-proof poll owner/repo#123 --re-review
-
-# Curate a pending review in the terminal (keep/delete/skip each comment)
-proof curate owner/repo#123
-
-# Review history
-proof log
-proof log --pr owner/repo#42 --since 7d
-proof log -o json
-
-# Review metrics
-proof stats
-proof stats --since 30d
-
-# Compare two reviews of the same PR
+# Compare two most-recent reviews of a PR (what changed between reviews)
 proof diff owner/repo#42
-
-# Review with a profile
-proof poll --profile quick           # bugs/blockers only
-proof poll --profile thorough        # comprehensive review
-
-# Include your own PRs
-proof poll --include-own
-
-# Batch mode (skip interactive selection)
-proof poll --batch
+proof diff https://github.com/owner/repo/pull/42
 ```
+
+### History & Analytics
+
+```bash
+# Review history
+proof log                         # recent reviews (last 20)
+proof log --limit 5               # last 5 reviews
+proof log --since 7d              # reviews in last 7 days
+proof log --pr owner/repo#42      # history for a specific PR
+proof log -o json                 # JSON output
+
+# Aggregate review metrics (includes token usage)
+proof stats                       # all-time stats
+proof stats --since 7d            # last 7 days
+proof stats --since 30d           # last 30 days
+proof stats -o json               # JSON output
+```
+
+### Shell Completion
+
+```bash
+# Generate and enable completions
+proof completion bash   # bash
+proof completion zsh    # zsh
+proof completion fish   # fish
+proof completion powershell
+
+# Enable tab completion for zsh (add to ~/.zshrc)
+source <(proof completion zsh)
+```
+
+## AI Transparency
+
+All AI-generated review comments are tagged with a `🤖 AI-generated` prefix. Every review body includes a footer identifying Proof and the AI model used. These tags are visible to everyone and require deliberate editing to remove, ensuring transparency about AI involvement in code reviews.
+
+## File Exclusion (.proofignore)
+
+Create a `.proofignore` file to skip files from AI review (similar to `.gitignore`):
+
+```
+# Generated files
+*.pb.go
+*_generated.go
+
+# Vendored dependencies
+vendor/
+
+# Test fixtures
+testdata/
+```
+
+Place at repo root (fetched via GitHub API) or globally at `~/.proof/.proofignore`.
 
 ## How It Works
 
 1. `proof poll` finds PRs and generates AI reviews as **pending drafts**
-2. You curate the review — edit, delete, or keep comments
+2. Curate the review — use `proof curate` in the terminal to keep, edit, or delete comments
 3. Visit GitHub to review the pending comments and submit when ready
 
 ## Configuration
@@ -255,7 +338,7 @@ review:
 | Field | Default | Description |
 |---|---|---|
 | `default_verdict` | `COMMENT` | Verdict applied when submitting. Options: `APPROVE`, `REQUEST_CHANGES`, `COMMENT` |
-| `model` | `gpt-4.1` | AI model. Supported: `gpt-4.1`, `gpt-4.1-mini`, `gpt-5-mini`, `claude-haiku-4.5` |
+| `model` | `gpt-4.1` | AI model to use. Run `proof config models` to see available models, or use tab completion with `proof poll --model <TAB>`. |
 | `instructions` | _(none)_ | Free-form text appended to the AI prompt for every review |
 
 > **Tip:** Per-repo `instructions` (under `repos`) are merged with the global `review.instructions` for that repo's reviews.
@@ -271,6 +354,32 @@ teams:
   - myorg/backend-team    # Any PR requesting this team's review will be picked up
   - myorg/security-team
 ```
+
+---
+
+### Review Profiles
+
+Profiles let you switch between focused review modes without changing your base config. Select a profile at runtime with `proof poll --profile <name>`.
+
+```yaml
+profiles:
+  quick:
+    instructions: |
+      Focus only on bugs, logic errors, and security issues.
+      Skip style, formatting, and minor nit comments.
+  thorough:
+    instructions: |
+      Perform a comprehensive review covering correctness, performance,
+      security, error handling, test coverage, and code style.
+  security:
+    instructions: |
+      Focus exclusively on security issues: injection, auth bypasses,
+      hardcoded secrets, missing input validation, and unsafe dependencies.
+```
+
+Built-in profiles `quick` and `thorough` are available without configuration. Custom profiles are merged with your global `review.instructions`.
+
+> **Tip:** Run `proof stats` to see token usage and premium request counts broken down by profile.
 
 ---
 

@@ -47,7 +47,7 @@ flowchart TD
 
     X["Store locally<br/>pending.json — tracking<br/>reviews.jsonl — history + usage<br/>learning.jsonl — curation delta"]:::internal --> Y
 
-    Y[/"Done! User visits GitHub<br/>to curate and submit<br/>Human-in-the-loop"/]:::user
+    Y[/"Done! Use proof curate<br/>to edit in terminal, then<br/>visit GitHub to submit<br/>Human-in-the-loop"/]:::user
 
     classDef user fill:#a5d8ff,stroke:#1e1e1e,stroke-width:2px,color:#000
     classDef github fill:#b2f2bb,stroke:#1e1e1e,stroke-width:2px,color:#000
@@ -72,7 +72,7 @@ flowchart TD
 
 ## Key Design Principles
 
-1. **Human-in-the-loop**: The CLI never publishes reviews. Users must visit GitHub to submit.
+1. **Human-in-the-loop**: The CLI never publishes reviews. Use `proof curate` to edit comments in the terminal, then visit GitHub to submit.
 2. **Fresh session per PR**: Each review gets its own Copilot session — failures don't cascade.
 3. **Retry on timeout**: One automatic retry before giving up, with actionable error messages.
 4. **Layered instructions**: Base prompt > repo instructions > user config > profile, composed in order.
