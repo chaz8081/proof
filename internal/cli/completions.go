@@ -48,7 +48,7 @@ func completePendingPRs(cmd *cobra.Command, args []string, toComplete string) ([
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	store := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+	store := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 	records, err := store.List()
 	if err != nil || len(records) == 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -66,7 +66,7 @@ func completeHistoryPRs(cmd *cobra.Command, args []string, toComplete string) ([
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	history := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+	history := proofstore.NewHistoryStore(filepath.Join(config.DataDir(), "reviews.jsonl"))
 	records, err := history.List()
 	if err != nil || len(records) == 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp

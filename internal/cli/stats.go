@@ -36,7 +36,7 @@ func init() {
   proof stats --since 30d  # last 30 days
   proof stats -o json      # JSON output`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+			historyStore := proofstore.NewHistoryStore(filepath.Join(config.DataDir(), "reviews.jsonl"))
 			records, err := historyStore.List()
 			if err != nil {
 				return fmt.Errorf("reading review history: %w", err)

@@ -56,9 +56,9 @@ func computeDelta(original *proofstore.OriginalReview, submittedCount int, submi
 	}
 }
 
-// saveLearningDelta appends a delta record to ~/.proof/learning.jsonl.
+// saveLearningDelta appends a delta record to the proof data directory.
 func saveLearningDelta(delta LearningDelta) error {
-	path := filepath.Join(config.ConfigDir(), "learning.jsonl")
+	path := filepath.Join(config.DataDir(), "learning.jsonl")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}

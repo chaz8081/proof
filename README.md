@@ -190,7 +190,7 @@ vendor/
 testdata/
 ```
 
-Place at repo root (fetched via GitHub API) or globally at `~/.proof/.proofignore`.
+Place at repo root (fetched via GitHub API) or globally at `~/.local/share/proof/.proofignore`.
 
 ## How It Works
 
@@ -200,7 +200,7 @@ Place at repo root (fetched via GitHub API) or globally at `~/.proof/.proofignor
 
 ## Configuration
 
-`~/.proof/config.yaml`:
+`~/.config/proof/config.yaml`:
 
 ```yaml
 repos:
@@ -221,7 +221,7 @@ review:
 
 ## Configuration Guide
 
-This section walks through every configuration option in `~/.proof/config.yaml`.
+This section walks through every configuration option in `~/.config/proof/config.yaml`.
 
 ### Quick Start
 
@@ -386,7 +386,7 @@ Built-in profiles `quick` and `thorough` are available without configuration. Cu
 ### Full Annotated Config
 
 ```yaml
-# ~/.proof/config.yaml
+# ~/.config/proof/config.yaml
 
 # ── Repos ───────────────────────────────────────────────────────────────────
 repos:

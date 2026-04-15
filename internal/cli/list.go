@@ -44,11 +44,11 @@ func init() {
 
 			cfg, err := config.Load()
 			if err != nil {
-				return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof setup' to create one, then edit it to add your repos.")
+				return fmt.Errorf("No config found at ~/.config/proof/config.yaml\nRun 'proof setup' to create one, then edit it to add your repos.")
 			}
 
 			if len(cfg.Repos) == 0 {
-				return fmt.Errorf("No repos configured. Edit ~/.proof/config.yaml and add repos to watch.\nExample:\n  repos:\n    - owner/repo\n    - myorg/*")
+				return fmt.Errorf("No repos configured. Edit ~/.config/proof/config.yaml and add repos to watch.\nExample:\n  repos:\n    - owner/repo\n    - myorg/*")
 			}
 
 			token, err := resolveToken()
@@ -72,7 +72,7 @@ func init() {
 				}
 			}
 
-			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 
 			// Phase 1: Local fast path — show stored pending reviews immediately
 			stored, _ := pendingStore.List()

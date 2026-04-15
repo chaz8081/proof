@@ -62,15 +62,15 @@ func pollMultiplePRs(cmd *cobra.Command, opts pollOptions) error {
 	}
 
 	for {
-		pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+		pendingStore := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 
 		cfg, err := config.Load()
 		if err != nil {
-			return fmt.Errorf("No config found at ~/.proof/config.yaml\nRun 'proof setup' to create one, then edit it to add your repos.")
+			return fmt.Errorf("No config found at ~/.config/proof/config.yaml\nRun 'proof setup' to create one, then edit it to add your repos.")
 		}
 
 		if len(cfg.Repos) == 0 {
-			return fmt.Errorf("No repos configured. Edit ~/.proof/config.yaml and add repos to watch.\nExample:\n  repos:\n    - owner/repo\n    - myorg/*")
+			return fmt.Errorf("No repos configured. Edit ~/.config/proof/config.yaml and add repos to watch.\nExample:\n  repos:\n    - owner/repo\n    - myorg/*")
 		}
 
 		token, err := resolveGitHubToken(cfg)
@@ -280,7 +280,7 @@ func reviewPR(
 	// Load .proofignore patterns
 	var ignorePatterns []string
 	// Global ignore
-	globalIgnorePath := filepath.Join(config.ConfigDir(), ".proofignore")
+	globalIgnorePath := filepath.Join(config.DataDir(), ".proofignore")
 	if data, rerr := os.ReadFile(globalIgnorePath); rerr == nil {
 		ignorePatterns = append(ignorePatterns, review.ParseIgnorePatterns(string(data))...)
 	}
@@ -436,7 +436,7 @@ func reviewPR(
 	}
 
 	// Record review in history
-	historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+	historyStore := proofstore.NewHistoryStore(filepath.Join(config.DataDir(), "reviews.jsonl"))
 	_ = historyStore.Append(proofstore.ReviewRecord{
 		Timestamp:       time.Now(),
 		Owner:           pr.Owner,

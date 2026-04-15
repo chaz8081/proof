@@ -56,7 +56,7 @@ func init() {
 			cmd.Printf("Verdict:  %s\n", cfg.Review.DefaultVerdict)
 
 			// Pending reviews from local store
-			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 			stored, _ := pendingStore.List()
 			if len(stored) > 0 {
 				cmd.Printf("\nPending:  %d review(s)\n", len(stored))

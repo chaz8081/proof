@@ -23,7 +23,7 @@ func init() {
 				return err
 			}
 
-			historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+			historyStore := proofstore.NewHistoryStore(filepath.Join(config.DataDir(), "reviews.jsonl"))
 			reviews, err := historyStore.ListForPR(owner, repo, number)
 			if err != nil {
 				return fmt.Errorf("reading review history: %w", err)

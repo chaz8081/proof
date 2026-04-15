@@ -48,7 +48,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	}
 
 	// Look up existing store record before deleting (needed for incremental diff context).
-	pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+	pendingStore := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 	var existingRecord *proofstore.PendingRecord
 	if storeRecords, lerr := pendingStore.List(); lerr == nil {
 		for i := range storeRecords {
@@ -76,7 +76,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	// Load .proofignore patterns
 	var ignorePatterns []string
 	// Global ignore
-	globalIgnorePath := filepath.Join(config.ConfigDir(), ".proofignore")
+	globalIgnorePath := filepath.Join(config.DataDir(), ".proofignore")
 	if data, err := os.ReadFile(globalIgnorePath); err == nil {
 		ignorePatterns = append(ignorePatterns, review.ParseIgnorePatterns(string(data))...)
 	}
@@ -214,7 +214,7 @@ func pollSinglePR(cmd *cobra.Command, prRef string, opts pollOptions) error {
 	}
 
 	// Record review in history
-	historyStore := proofstore.NewHistoryStore(filepath.Join(config.ConfigDir(), "reviews.jsonl"))
+	historyStore := proofstore.NewHistoryStore(filepath.Join(config.DataDir(), "reviews.jsonl"))
 	_ = historyStore.Append(proofstore.ReviewRecord{
 		Timestamp:       time.Now(),
 		Owner:           owner,

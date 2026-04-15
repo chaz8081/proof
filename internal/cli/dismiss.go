@@ -32,7 +32,7 @@ func init() {
 			}
 
 			ghClient := proofgh.NewClient(token)
-			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 
 			pending, err := ghClient.ListPendingReviews(ctx, owner, repo, number)
 			if err != nil {

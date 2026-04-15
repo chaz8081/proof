@@ -108,9 +108,24 @@ func Load() (*Config, error) {
 	return LoadFromPath(filepath.Join(ConfigDir(), "config.yaml"))
 }
 
+// ConfigDir returns the directory for config files.
+// Uses $XDG_CONFIG_HOME/proof or ~/.config/proof.
 func ConfigDir() string {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "proof")
+	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".proof")
+	return filepath.Join(home, ".config", "proof")
+}
+
+// DataDir returns the directory for data files (pending, history, learning).
+// Uses $XDG_DATA_HOME/proof or ~/.local/share/proof.
+func DataDir() string {
+	if xdg := os.Getenv("XDG_DATA_HOME"); xdg != "" {
+		return filepath.Join(xdg, "proof")
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".local", "share", "proof")
 }
 
 func DefaultConfig() *Config {

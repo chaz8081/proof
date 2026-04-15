@@ -102,7 +102,7 @@ func init() {
 			cmd.Printf("  https://github.com/%s/%s/pull/%d\n", owner, repo, number)
 
 			// Learning: track curation delta based on what was kept vs deleted
-			pendingStore := proofstore.NewFileStore(filepath.Join(config.ConfigDir(), "pending.json"))
+			pendingStore := proofstore.NewFileStore(filepath.Join(config.DataDir(), "pending.json"))
 			stored, _ := pendingStore.List()
 			for _, rec := range stored {
 				if rec.Owner == owner && rec.Repo == repo && rec.Number == number && rec.OriginalResult != nil {
